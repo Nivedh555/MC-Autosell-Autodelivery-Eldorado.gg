@@ -1,9 +1,18 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-function acquire(directory) {
+function acquire(directory, {migrationTarget}={}) {
   fs.mkdirSync(directory, { recursive: true });
-  const file = path.join(directory, 'process.lock');
+  if(fs.existsSync(path.join(directory,'migrated-to.json'))){
+    const retired=JSON.parse(fs.readFileSync(path.join(directory,'migrated-to.json'),'utf8'));
+    if(!migrationTarget||retired.target!==migrationTarget)throw Error('This workspace was migrated to the desktop application. Start the desktop app; the old copy is retired to prevent duplicate payments.');
+  }
+  let file = path.join(directory, 'process.lock');
+  if(migrationTarget && fs.existsSync(file)){
+    const retired=JSON.parse(fs.readFileSync(file,'utf8'));
+    // Legacy launchers also refuse pid zero. Retain that fence during recovery.
+    if(retired.pid===0&&retired.retiredTo===migrationTarget)file=path.join(directory,'migration-recovery.lock');
+  }
   if (fs.existsSync(file)) {
     const previous = JSON.parse(fs.readFileSync(file, 'utf8'));
     if (!Number.isInteger(previous.pid) || previous.pid < 1) throw new Error('Invalid process lock; inspect it manually');

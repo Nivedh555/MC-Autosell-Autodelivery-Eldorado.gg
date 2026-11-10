@@ -51,7 +51,7 @@ class GameBridge extends EventEmitter {
       );
     this.server = new WebSocketServer({
       host: "127.0.0.1",
-      port: this.options.port ?? 4210,
+      port: this.options.port ?? (process.env.AUTOSELL_DESKTOP_TEST==='1'&&process.env.AUTOSELL_DESKTOP_TEST_BRIDGE_PORT==='0'?0:4210),
       maxPayload: 8 * 1024 * 1024,
       perMessageDeflate: false,
     });
@@ -223,6 +223,15 @@ class GameBridge extends EventEmitter {
       version: "26.3",
     };
   }
+  async existingPairing(accountId, ign) {
+    const account = this.services.db.raw().prepare("SELECT id,ign FROM v3_accounts WHERE id=?").get(accountId);
+    if (!account) return null;
+    if (account.ign !== ign) throw Error("This account slot belongs to a different Minecraft IGN");
+    const token = this.tokens.get(accountId);
+    if (!token) throw Error("The saved pairing token is unavailable. Unlock the original vault and restart Autosell.");
+    return { url: "ws://127.0.0.1:" + this.server.address().port, accountId, ign, token,
+      server: this.options.host || process.env.AUTOSELL_GAME_HOST || "donutsmp.net", version: "26.3" };
+  }
   status() {
     return this.services.db
       .raw()
@@ -235,6 +244,9 @@ class GameBridge extends EventEmitter {
       }));
   }
   request(accountId, operation, args = {}, timeout = 15000) {
+    if(operation==='collect'||operation==='store'||(operation==='command'&&/^\/pay /.test(args.command||''))){
+      try{this.services.maintenance?.assertCanDispatch();}catch(error){return Promise.reject(error);}
+    }
     if (
       ![
         "command",

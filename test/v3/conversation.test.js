@@ -40,7 +40,7 @@ test('explicit owner confirmation is bound to this exact buyer, amount and offer
  }finally{db.close();}
 });
 
-test("completed delivery sends the buyer message and both confirmation guides; confirmed buyers are skipped",async t=>{
+test("completion text and confirmation guides are disabled by default, including already received orders",async t=>{
   const database=new DatabaseSync(":memory:");database.exec("CREATE TABLE delivery_orders(id TEXT,payload TEXT,state TEXT,evidence TEXT,created_ms INTEGER)");
   database.exec("CREATE TABLE browser_actions(operation TEXT,resource_id TEXT,request TEXT)");
   database.exec(require('node:fs').readFileSync(require('node:path').resolve(__dirname,'../../db/migrations/026-message-outbox.sql'),'utf8'));
@@ -54,8 +54,8 @@ test("completed delivery sends the buyer message and both confirmation guides; c
     deliveryService:{repo:{get:()=>({state:"DELIVERED"})},ownerHeld:()=>false},
     browserBridge:{status:()=>({connected:true}),sendOrderMessageObserved:async(order,text,id,_seller,authorize)=>{await authorize();sends.push({order,text,id});},uploadOrderEvidenceObserved:async(order,file,_seller,authorize,options)=>{await authorize();assert.equal(options.confirmationGuide,true);assert(fs.existsSync(file));uploads.push([order.id,require('node:path').basename(file)]);}}
   });service.start();t.after(()=>{service.stop();database.close();});
-  await service.tick();await service.tick();assert.deepEqual(uploads,[["order-a","how-to-confirm-1.png"],["order-a","how-to-confirm-2.png"]]);assert.equal(sends.length,1);
-  assert.match(sends[0].text,/Confirm delivery/);assert.equal(sends[0].id,"v3-completion:order-a");
+  await service.tick();await service.tick();assert.deepEqual(uploads,[]);assert.equal(sends.length,0);
+  assert.equal(database.prepare('SELECT state FROM v3_completions WHERE order_id=?').get('order-a').state,'SKIPPED');
   assert.equal(database.prepare('SELECT state FROM v3_completions WHERE order_id=?').get('order-b').state,'SKIPPED');
 });
 

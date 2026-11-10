@@ -29,9 +29,9 @@ module.exports = Object.freeze({
   AUDIT_TABLE_NAME: 'audit_log',
   
                     
-  DEFAULT_DATA_DIR: require('node:path').join(__dirname, 'data'),
-  DEFAULT_DB_FILE: require('node:path').join(__dirname, 'data/autosell.db'),
-  DEFAULT_VAULT_FILE: require('node:path').join(__dirname, 'data/vault.dat'),
+  DEFAULT_DATA_DIR: require('./ops/runtime-paths').data(),
+  DEFAULT_DB_FILE: require('./ops/runtime-paths').data('autosell.db'),
+  DEFAULT_VAULT_FILE: require('./ops/runtime-paths').data('vault.dat'),
   
                                      
   SETTING_ID_REGEX: /^[a-z0-9_-]+\.[a-z0-9_-]+(\.[a-z0-9_-]+)*$/i,

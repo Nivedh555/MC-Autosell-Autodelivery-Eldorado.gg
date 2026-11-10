@@ -20,6 +20,7 @@ function createServer(services) {
   
   app.disable('x-powered-by');
   app.set('trust proxy', false);
+  app.use(require('../ops/desktop-control').tokenGuard());
   const boundary = require('./security-boundary');
   const { verifyAuth, csrfProtection } = require('./middleware');
   app.use(boundary.originGuard);

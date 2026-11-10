@@ -7,7 +7,7 @@ const attachments = require('./evidence-upload');
 const references = require('./order-reference');
 
 const hash = value => crypto.createHash('sha256').update(value).digest('hex');
-const delivered = value => ['order delivered','order marked as delivered','delivered'].includes(String(value).toLowerCase());
+const delivered = value => require('../order-status').closure(value)==='completed';
 
 async function run(session,order,operation,request,proposedId,completion,work) {
   return session.observedExclusive(async () => {
@@ -26,12 +26,12 @@ async function run(session,order,operation,request,proposedId,completion,work) {
         if (session.epoch!==generation || !session.context) throw Error('Seller browser disconnected during the order message.');
       };
       if (!session.page || session.page.isClosed()) session.page=await session.newPage();
-      const history=await session.orderChatContext(order,{completionNotification:completion});
+      const history=await session.orderChatContext(order,{completionNotification:completion===true,cancellationNotification:completion==='cancellation'});
       const current=history.orders.find(row=>row.id===order.id);
       if (!current || history.sellerHref!==request.sellerHref ||
           ['buyerName','gameLabel','quantityDisplay','orderUrl'].some(key=>order[key]!==current[key]))
         throw Error('The selected seller or buyer conversation changed.');
-      if (completion ? !delivered(current.status) : current.status!=='Pending delivery')
+      if (completion==='cancellation'?require('../order-status').closure(current.status)!=='canceled':completion ? !delivered(current.status) : current.status!=='Pending delivery')
         throw Error('This order is no longer eligible for this customer message.');
       check();
       const result=await work({outbox,claim,current,check});
@@ -54,7 +54,10 @@ function send(session,order,text,messageId,sellerHref,authorize) {
     throw Error('An authorized persisted reply is required.');
   const request={orderId:order.id,text,messageId,sellerHref};
   const proposedId='sendMessageObserved:'+hash(JSON.stringify([order.id,messageId]));
-  const completion=logicalKey(order.id,'sendMessageObserved',request)==='completion-text';
+  const db=session.services.db.raw();
+  const snapshot=db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='customer_message_snapshots'").get()?db.prepare('SELECT event,text FROM customer_message_snapshots WHERE id=? AND order_id=?').get(messageId,order.id):null;
+  const completion=logicalKey(order.id,'sendMessageObserved',request)==='completion-text'||snapshot&&['review_request','payment_verified'].includes(snapshot.event)&&delivered(order.status)?true:snapshot?.event==='buyer_canceled'?'cancellation':false;
+  if(snapshot&&snapshot.text!==text){const old=db.prepare("SELECT request FROM browser_actions WHERE operation='sendMessageObserved' AND resource_id=? AND json_extract(request,'$.messageId')=? LIMIT 1").get(order.id,messageId);if(!old||JSON.parse(old.request).text!==text)throw Error('Customer message differs from its scheduled content.');}
   return run(session,order,'sendMessageObserved',request,proposedId,completion,async ({outbox,claim,current,check}) => {
     const previous=claim.physical && JSON.parse(claim.physical.request);
     if (previous && (previous.orderId!==order.id || previous.sellerHref!==sellerHref))
@@ -63,13 +66,13 @@ function send(session,order,text,messageId,sellerHref,authorize) {
     const value=previous?.text ?? text;
     if (claim.reconcile) {
       if (!Array.isArray(previous?.before)) throw Error('Previous chat submission lacks its comparison snapshot. Review the order conversation.');
-      const ref=await references.readReference(session.page,current,session.config.timeoutMs);
+      const ref=await references.readReference(session.page,current,session.config.timeoutMs,{customerCancellation:completion==='cancellation'});
       if (ref.status!==current.status) throw Error('Order changed while reconciling its earlier message.');
       const receipt=chat.newReceipt(previous.before,ref.messages,order.id,value);
       return {...receipt,recovered:true};
     }
     if (previous) {
-      const ref=await references.readReference(session.page,current,session.config.timeoutMs);
+      const ref=await references.readReference(session.page,current,session.config.timeoutMs,{customerCancellation:completion==='cancellation'});
       await authorize(ref);
       // The durable marker proves no click was attempted. Only an unchanged draft
       // can be cleared and restaged. A user's edited draft stays intact.
@@ -81,7 +84,7 @@ function send(session,order,text,messageId,sellerHref,authorize) {
     }
     const config=await session.services.settings?.get('eldorado.chat.local')||{};
     return chat.send(session.page,current,value,{
-      timeoutMs:session.config.timeoutMs,characterMs:config.fastReplies!==false?0:session.config.characterMs,check,
+      timeoutMs:session.config.timeoutMs,characterMs:config.fastReplies!==false?0:session.config.characterMs,check,customerCancellation:completion==='cancellation',
       beforeSend:async ref=>{
         await authorize(ref);check();
         const persisted={...request,text:value,before:ref.messages};

@@ -55,7 +55,7 @@ class DeliveryService {
   }
   async processOrder(order, requestedAccountId) {
     if(this.stopping)return false;
-    const work=this.context.run(order.id,()=>this._processOrder(order,requestedAccountId));this.activeOrders.add(work);
+    const work=require('../ops/maintenance').run(services,'delivery',()=>this.context.run(order.id,()=>this._processOrder(order,requestedAccountId)));this.activeOrders.add(work);
     try{return await work;}finally{this.activeOrders.delete(work);}
   }
   async stop(timeoutMs=30000){

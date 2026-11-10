@@ -30,7 +30,7 @@ function vouchUrl() {
     return null;
   }
 }
-const FILE = path.resolve(__dirname, '..', 'data', 'panel-design.json');
+const FILE = require('../ops/runtime-paths').data('panel-design.json');
 const LOGO = () => require('./payments').LTC_LOGO;
 
                                                                                

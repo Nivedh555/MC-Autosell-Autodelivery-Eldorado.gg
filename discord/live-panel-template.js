@@ -1,7 +1,7 @@
 'use strict';
 const fs = require('node:fs'), path = require('node:path');
 const { EmbedBuilder } = require('discord.js');
-const file = path.join(__dirname, '../data/custom-panel.json');
+const file = require('../ops/runtime-paths').data('custom-panel.json');
 function load() { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; } }
 function save(template) { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(template, null, 2)); }
 function clear() { if (fs.existsSync(file)) fs.unlinkSync(file); }

@@ -1,6 +1,12 @@
 'use strict';
 const DEFAULT_OPENING='Thanks for the order!\n\nPlease reply with only your Minecraft IGN — the name on the scoreboard on the right (example picture attached).\n\n• If your name contains an underscore (_), put the whole name in quotes: "_Steve" or "_MS_2".\n• Bedrock: include the dot at the start, e.g. .Steve.\n\nI’ll ask you to confirm with Y or N, then send the coins.\n\nType cancel if you want this order cancelled.';
-function confirmationPrompt(ign,amount){
+function confirmationPrompt(ign,amount,context){
+ if(context?.orderId){
+  const engine=require('./customer-message-config').forServices(context.services||require('../services'));
+  if(engine){const rev=revision(context.messages||[]),id=context.id||require('./customer-message-config').identity('confirm_recipient',context.orderId,rev),order={...context.order,id:context.orderId,buyerIgn:ign,amount};
+    const correction=context.corrected?engine.schedule('username_corrected',order,id+':correction').text:'';
+    return engine.schedule('confirm_recipient',order,id,{orderId:context.orderId,ign,amount:String(amount),revision:rev,correction}).text;}
+ }
  if(amount!=null)return require('./customer-messages').render('confirm',{amount,ign});
  const amountLine=/^[1-9][0-9]*$/.test(String(amount))?'Sending '+BigInt(amount).toLocaleString('en-US')+' Donut dollars to "'+ign+'".':'Confirm your Minecraft IGN: "'+ign+'".';
  return amountLine+'\nReply Y to confirm or N to enter it again.';
@@ -15,12 +21,13 @@ function selection(messages,{confirmIgn=true,...options}={}){
  if(!Array.isArray(messages)||messages.length>500)throw Error('Bounded captured message list required');
  // Even legacy confirmIgn=false cannot turn an unconfirmed candidate into authority.
  let latest=null,prompt=null,confirmed=false,confirmationMessageId=null,rejected=false,paused=false,cancelled=false,requiresClarification=false;
- const candidates=[];
+ const candidates=[],seen=[];
  const revoke=()=>{prompt=null;confirmed=false;confirmationMessageId=null;};
  for(const message of messages){
   if(message.kind==='attachment')continue;
-  if(message.peer===false){if(latest&&!paused&&!cancelled&&!rejected&&!requiresClarification&&[confirmationPrompt(latest.ign,options.amount),...(options.amount?['Sending '+BigInt(options.amount).toLocaleString('en-US')+' Donut dollars to "'+latest.ign+'".\nReply Y to confirm or N to enter it again.']:[])].includes(message.text.trim())){if(prompt!==message.id){confirmed=false;confirmationMessageId=null;}prompt=message.id;}continue;}
+  if(message.peer===false){if(latest&&!paused&&!cancelled&&!rejected&&!requiresClarification&&isConfirmation(message.text.trim(),latest.ign,options.amount,{...options,revision:revision(seen)})){if(prompt!==message.id){confirmed=false;confirmationMessageId=null;}prompt=message.id;}continue;}
   if(message.peer!==true)continue;
+  seen.push(message);
   const result=require('./chat-rules').classify(message.text,undefined,{...options,expectIgn:true});
   if(['cancel','escalation','missing','ambiguous_cancel'].includes(result.intent)){
    revoke();paused=true;cancelled||=result.intent==='cancel';requiresClarification=true;continue;
@@ -40,6 +47,17 @@ function selection(messages,{confirmIgn=true,...options}={}){
  }
  return {candidates,latest,confirmed:confirmed&&!cancelled,confirmationMessageId,promptMessageId:prompt,rejected,paused,cancelled,needsConfirmation:Boolean(latest&&!confirmed),requiresClarification:requiresClarification||cancelled,moneyActionsAllowed:false};
 }
+function isConfirmation(text,ign,amount,options={}){
+ const engine=require('./customer-message-config').forServices(options.services||require('../services'));
+ if(engine?.recognize(text,ign,amount,options.orderId,options.revision))return true;
+ // Once this order uses configurable messages, a seller-authored greeting or
+ // custom stage must never qualify just by imitating a pre-upgrade prompt.
+ if(engine&&options.orderId&&engine.db.prepare('SELECT 1 FROM customer_message_snapshots WHERE order_id=? LIMIT 1').get(options.orderId)){
+   const legacy=engine.db.prepare("SELECT 1 FROM buyer_messages WHERE order_id=? AND intent='recipient_confirmation' AND direction='out' AND text=? AND created_ms<=(SELECT initialized_ms FROM customer_message_options WHERE id=1) LIMIT 1").get(options.orderId,text);
+   if(!legacy)return false;
+ }
+ return [confirmationPrompt(ign,amount),...(amount?['Sending '+BigInt(amount).toLocaleString('en-US')+' Donut dollars to "'+ign+'".\nReply Y to confirm or N to enter it again.']:[])].includes(text);
+}
 function revision(messages){return require('node:crypto').createHash('sha256').update(JSON.stringify(messages.filter(m=>m.peer===true&&m.kind!=='attachment').map(m=>[m.id,m.text]))).digest('hex');}
 function ownerRecipient(services,order,reference){
  const event=services.db?.raw().prepare("SELECT data,wall_ms FROM delivery_events WHERE order_id=? AND kind='OWNER_CONFIRMED_RECIPIENT' ORDER BY wall_ms DESC LIMIT 1").get(order.id);
@@ -49,4 +67,4 @@ function ownerRecipient(services,order,reference){
  if(!reference||!data.conversationRevision||data.conversationRevision!==revision(reference.messages))return null;
  return {latest:{ign:data.ign,messageId:'owner-confirmation:'+event.wall_ms},confirmed:true,confirmationMessageId:'owner-confirmation:'+event.wall_ms,requiresClarification:false,source:'Explicit owner confirmation, recorded separately from buyer messages'};
 }
-module.exports={DEFAULT_OPENING,confirmationPrompt,quantityForOrder,selection,ownerRecipient,revision};
+module.exports={DEFAULT_OPENING,confirmationPrompt,isConfirmation,quantityForOrder,selection,ownerRecipient,revision};

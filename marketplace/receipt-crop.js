@@ -75,5 +75,19 @@ function forEvidenceReview(error) {
   error.code='EVIDENCE_REVIEW';
   return error;
 }
+// Customer preview only. Integer pixel replication preserves every captured
+// source pixel; no text is re-rendered and no extra scene pixels are included.
+function presentReceipt(bytes) {
+  const source=PNG.sync.read(bytes);
+  const scale=Math.max(1,Math.min(4,Math.ceil(640/source.width),Math.floor(1600/source.width),Math.floor(512/source.height)));
+  const presentation={method:'nearest-neighbor-integer',scale,sourceWidth:source.width,sourceHeight:source.height,width:source.width*scale,height:source.height*scale};
+  if(scale===1)return {bytes,presentation};
+  const output=new PNG({width:presentation.width,height:presentation.height});
+  for(let y=0;y<output.height;y++)for(let x=0;x<output.width;x++){
+    const input=(Math.floor(y/scale)*source.width+Math.floor(x/scale))*4;
+    source.data.copy(output.data,(y*output.width+x)*4,input,input+4);
+  }
+  return {bytes:PNG.sync.write(output),presentation};
+}
 
-module.exports = {receiptSpec,cropReceipt,forEvidenceReview};
+module.exports = {receiptSpec,cropReceipt,presentReceipt,forEvidenceReview};

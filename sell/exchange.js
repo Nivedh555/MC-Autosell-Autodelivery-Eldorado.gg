@@ -82,6 +82,7 @@ async function startVerify(discordId, ign, interaction) {
   const max = services.config?.verify?.max || 100;
   const amount = crypto.randomInt(min, max + 1);
   const saleId = 'link:' + crypto.randomUUID();
+  ticket.bindSale(saleId);
   const ttl = services.config?.verify?.ttlMs || 300000;
   lease = await services.sessions.acquire(accountId, saleId, {ttlMs:ttl + 60000});
   try {
@@ -106,6 +107,7 @@ async function armMoneySell(discordId, ign, requested, interaction, selectedAcco
   let lease;
   try {
   const saleId = crypto.randomUUID();
+  ticket.bindSale(saleId);
   const roles = await services.settings.get('treasury.accountRoles');
   const accountId = selectedAccount || Object.keys(roles).find(id => roles[id].role === 'intake');
   if (!accountId || roles[accountId]?.role !== 'intake') throw Error('Intake account role is not configured');

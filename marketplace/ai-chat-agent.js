@@ -74,11 +74,12 @@ class AiChatAgent extends EventEmitter {
       const started=['PAY_INTENT','PAY_SENT','PAY_VERIFIED','ALL_VERIFIED','EVIDENCE_BUILT','MARK_DELIVERED_PENDING','DELIVERED'].includes(row.state);
       if(started){key=this.stateTemplate(row.state);}
       else {
-        const flow=require('./order-chat-flow'),amount=flow.quantityForOrder(recorded,context.reference||recorded.orderReference),selected=flow.selection(context.reference?.messages||recorded.orderReference?.messages||[],{...config,amount});
+        const flow=require('./order-chat-flow'),amount=flow.quantityForOrder(recorded,context.reference||recorded.orderReference),selected=flow.selection(context.reference?.messages||recorded.orderReference?.messages||[],{...config,amount,orderId,services:this.services});
         if(selected.confirmed&&selected.latest){directReply='';action='recipient_confirmed';draftId='ign-confirmed:'+orderId+':'+selected.confirmationMessageId;}
         else if(selected.latest&&!selected.requiresClarification&&!selected.rejected&&selected.promptMessageId){directReply='';}
-        else if(selected.latest&&!selected.requiresClarification&&!selected.rejected){directReply=flow.confirmationPrompt(selected.latest.ign,amount);draftId='ign-confirm:'+orderId+':'+selected.latest.messageId+(amount?':'+amount:'');draftIntent='recipient_confirmation';}
-        else if(!directReply){directReply=result.intent==='confirm_no'?'No problem! What is the correct Minecraft username?':'Please send just your exact Minecraft username, including the starting dot for Bedrock. I will confirm it before sending.';draftIntent='recipient_correction';draftId='ign-clarify:'+orderId+':'+flow.revision(reference?.messages||[]);}
+        else if(selected.latest&&!selected.requiresClarification&&!selected.rejected){draftId='ign-confirm:'+orderId+':'+flow.revision(reference?.messages||[])+(amount?':'+amount:'');directReply=flow.confirmationPrompt(selected.latest.ign,amount,{orderId,order:recorded,services:this.services,messages:reference?.messages||[],id:draftId,corrected:result.intent==='recipient_correction'||selected.candidates.some(candidate=>candidate.ign!==selected.latest.ign)});draftIntent='recipient_confirmation';}
+        else if(!directReply){directReply=result.intent==='confirm_no'?'No problem! What is the correct Minecraft username?':'Please send just your exact Minecraft username, including the starting dot for Bedrock. I will confirm it before sending.';draftIntent='recipient_correction';draftId='ign-clarify:'+orderId+':'+flow.revision(reference?.messages||[]);
+          const engine=require('./customer-message-config').forServices(this.services);if(engine)directReply=engine.schedule('invalid_username',{...recorded,id:orderId,amount},draftId).text;}
       }
     } else if (['automation','keep','ambiguous_cancel','ign','thanks','off_topic'].includes(result.intent)) {
       key = result.intent;
@@ -133,16 +134,20 @@ class AiChatAgent extends EventEmitter {
     if (!row || !(PREPAY.has(row.state)||row.state==='WAITING_FOR_IGN'||row.conversationOnly===true) || this.db?.prepare('SELECT id FROM buyer_messages WHERE id=? OR (order_id=? AND direction=\'out\' AND intent=\'opening\' AND state=\'browser-confirmed-sent\')').get(id,orderId)) return { reply: '', sent: false, duplicateOrIneligible: true };
     const config = await this.settings();
     const orderForOpening=JSON.parse(row.payload);
-    const known=require('./order-chat-flow').selection(orderForOpening.orderReference?.messages||[],{...config,amount:require('./order-chat-flow').quantityForOrder(orderForOpening,orderForOpening.orderReference)});
+    const known=require('./order-chat-flow').selection(orderForOpening.orderReference?.messages||[],{...config,orderId,services:this.services,amount:require('./order-chat-flow').quantityForOrder(orderForOpening,orderForOpening.orderReference)});
     if(known.latest&&!known.requiresClarification)return {reply:'',sent:false,skippedKnownRecipient:true};
-    let reply = config.openingMessage || require('./order-chat-flow').DEFAULT_OPENING;
-    if(!this.db?.prepare("SELECT id FROM browser_actions WHERE operation='uploadEvidenceObserved' AND resource_id=? AND state='CONFIRMED' AND json_extract(request,'$.name')='minecraft-ign-guide.png'").get(orderId))reply=reply.replace(' (example picture attached)','');
-    if(this.services.gameBridge){
-      const order=JSON.parse(row.payload);
-      const quantity=require('./order-chat-flow').quantityForOrder(order,order.orderReference);
-      reply=require('./customer-messages').render('opening',{buyer:order.buyerName||order.buyerMarketplaceId||order.browserOrder?.buyerName,amount:quantity});
+    let reply;
+    const engine=require('./customer-message-config').forServices(this.services);
+    if(engine){
+      const order={...orderForOpening,id:orderId,amount:require('./order-chat-flow').quantityForOrder(orderForOpening,orderForOpening.orderReference)};
+      const greeting=engine.schedule('new_order',order,id+':greeting'),request=engine.schedule('request_username',order,id+':username');
+      reply=[greeting.text,request.text].filter(Boolean).join('\n\n');
+      if(!reply)return {reply:'',sent:false,skippedConfigured:true};
+    }else{
+      reply=config.openingMessage||require('./order-chat-flow').DEFAULT_OPENING;
+      if(!this.db?.prepare("SELECT id FROM browser_actions WHERE operation='uploadEvidenceObserved' AND resource_id=? AND state='CONFIRMED' AND json_extract(request,'$.name')='minecraft-ign-guide.png'").get(orderId))reply=reply.replace(' (example picture attached)','');
+      validateOpening(reply);
     }
-    validateOpening(reply);
     const {min,max}=require('./chat-timing').chatTiming(config);
     this.save(orderId, reply.trim(), 'out', 'opening', 'local-rule-engine', Date.now() + crypto.randomInt(min, max + 1), id);
     return { reply: reply.trim(), sent: false, transport: 'manual-inbox', id };

@@ -23,7 +23,7 @@ class WithdrawalService {
   send(input) {
     const { wallet } = this.context;
     if (!wallet) return Promise.reject(Error('Wallet unavailable'));
-    return wallet._runQueued(() => this._send(input));
+    return wallet._runQueued(() => require('../ops/maintenance').run(this.context,'withdrawal',()=>this._send(input)));
   }
   async _send({ toAddress, amountLtc, all = false, requestId }) {
     const ctx = this.context; const { wallet, settings } = ctx; const db = ctx.db.raw();

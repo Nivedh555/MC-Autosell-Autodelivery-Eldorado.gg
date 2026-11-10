@@ -5,6 +5,7 @@ const { asyncHandler, requireReauth } = require("../api/middleware");
 const path = require("node:path"),
   fs = require("node:fs");
 const run = asyncHandler;
+router.use('/customer-messages', require('./customer-message-routes'));
 const settingsKeys = [
   "pricing.money.ratePerMillion",
   "pricing.spawner.priceUsd",
@@ -140,6 +141,7 @@ router.get(
     });
   }),
 );
+router.use("/game/onboarding", require("./minecraft-onboarding-routes")(s));
 router.use(requireReauth);
 router.post(
   "/discord/design",
@@ -228,30 +230,7 @@ router.post(
 router.post(
   "/game/pair",
   run(async (req, res) => {
-    if (!/^(buyer|seller)[1-9][0-9]?$/.test(req.body.accountId))
-      throw Error("Invalid account slot");
-    const index = Number(req.body.accountId.match(/\d+$/)[0]),
-      role = req.body.accountId.startsWith("buyer") ? "buyer" : "seller";
-    const pair = s.pairsRepo.getPairByIndex(index);
-    if (!pair) throw Error("Create this pair in Advanced settings first");
-    require("../treasury/trading-controls").assertEditable(pair);
-    const config = await s.gameBridge.pair(req.body.accountId, req.body.ign);
-    s.pairsRepo.savePair({
-      ...pair,
-      [role + "Ign"]: req.body.ign,
-      disabled: false,
-    });
-    const roles = await s.settings.get("treasury.accountRoles");
-    roles[req.body.accountId] = {
-      ...roles[req.body.accountId],
-      role: role === "buyer" ? "intake" : "holder",
-      ign: req.body.ign,
-    };
-    const buyer = "buyer" + index;
-    if (roles[buyer])
-      roles[buyer].holderAccount =
-        role === "seller" || pair.sellerIgn ? "seller" + index : buyer;
-    await s.settings.set("treasury.accountRoles", roles, "v3-pairing");
+    const config = await require("./pairing").configurePairing(s, req.body.accountId, req.body.ign);
     res.setHeader("Cache-Control", "no-store");
     res.json(config);
   }),

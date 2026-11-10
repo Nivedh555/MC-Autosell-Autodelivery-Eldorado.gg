@@ -4,6 +4,15 @@ const assert = require('node:assert/strict');
 const {randomUUID} = require('node:crypto');
 const {PNG} = require('pngjs');
 const {cropReceipt,receiptSpec} = require('../../marketplace/receipt-crop');
+test('customer receipt is enlarged with exact captured pixels and no padded canvas',()=>{
+  const source=new PNG({width:214,height:18});for(let i=0;i<source.data.length;i++)source.data[i]=i%256;
+  const {bytes,presentation}=require('../../marketplace/receipt-crop').presentReceipt(PNG.sync.write(source));
+  const output=PNG.sync.read(bytes);assert.equal(presentation.scale,3);assert.equal(output.width,642);assert.equal(output.height,54);
+  for(let y=0;y<output.height;y++)for(let x=0;x<output.width;x++){
+    const a=(y*output.width+x)*4,b=(Math.floor(y/3)*source.width+Math.floor(x/3))*4;
+    assert.deepEqual(output.data.subarray(a,a+4),source.data.subarray(b,b+4));
+  }
+});
 
 test('three chunked receipts require three separately verified rendered messages at multiple framebuffer sizes', () => {
   const order = {id:'chunked-order',buyerIgn:'.Sample',amount:'212000000'};

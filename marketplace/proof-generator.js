@@ -310,7 +310,7 @@ class ProofGenerator {
     const captures = [];
     try {
       for (const capture of data.screenshots || []) {
-        const file = path.resolve(capture.file);
+        const file = require('../ops/runtime-paths').resolveStored(capture.file);
         const root = path.resolve('data/captures') + path.sep;
         if (capture.reference !== data.orderId || !file.startsWith(root) || fs.lstatSync(file).isSymbolicLink())
           throw Error('Screenshot source or order reference does not match');
@@ -318,7 +318,8 @@ class ProofGenerator {
         if (bytes.length > 5*1024*1024 || sha256(bytes) !== capture.sha256 || bytes.subarray(0,8).toString('hex') !== '89504e470d0a1a0a')
           throw Error('Screenshot integrity check failed');
         const {cropReceipt,receiptSpec}=require('./receipt-crop');
-        captures.push({bytes, crop:cropReceipt(bytes,capture.receipt,receiptSpec(data,data.chunks))});
+        const crop=cropReceipt(bytes,capture.receipt,receiptSpec(data,data.chunks));
+        captures.push({bytes,crop,preview:require('./receipt-crop').presentReceipt(crop)});
       }
     } catch (error) {
       throw require('./receipt-crop').forEvidenceReview(error);
@@ -343,6 +344,7 @@ class ProofGenerator {
       marketplaceTranscript: data.transcript?.length ? data.transcript : 'not captured',
       stateHistory: data.history?.length ? data.history : 'not captured',
       screenshot: data.screenshots?.length ? data.screenshots.map(({file,...capture})=>capture) : 'not captured',
+      receiptPresentation: captures[0]?.preview.presentation || null,
       redaction: 'Known secret values and credential fields are replaced with [REDACTED]. Other captured text is preserved.',
     }, this.options.secrets || []);
     const artifacts = {};
@@ -350,9 +352,9 @@ class ProofGenerator {
       fs.writeFileSync(path.join(directory, name), bytes, { mode: 0o600, flag: 'wx' });
       artifacts[name] = sha256(bytes);
     };
-    for (const [index,{bytes,crop}] of captures.entries()) {
+    for (const [index,{bytes,crop,preview}] of captures.entries()) {
       write(index === 0 ? 'delivery-'+artifactId+'.png' : 'delivery-'+index+'-'+artifactId+'.png', bytes);
-      if(index===0)write('receipt-'+artifactId+'.png',crop);
+      if(index===0){write('receipt-source-'+artifactId+'.png',crop);write('receipt-'+artifactId+'.png',preview.bytes);}
     }
     const json = JSON.stringify(record, null, 2);
     write('evidence.json', json);

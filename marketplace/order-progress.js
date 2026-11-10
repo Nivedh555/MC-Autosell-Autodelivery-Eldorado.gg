@@ -14,7 +14,7 @@ function orderProgress(db,id,now=Date.now()){
   const actions=db.prepare("SELECT state,operation,request,reason FROM browser_actions WHERE resource_id=? AND operation IN ('uploadEvidenceObserved','sendMessageObserved')").all(id);
   const receipt=actions.filter(a=>a.operation==='uploadEvidenceObserved'&&/^receipt-/.test(JSON.parse(a.request||'{}').name||''));
   const evidence=row?.evidence?JSON.parse(row.evidence):null;
-  const selected=require('./order-chat-flow').selection(capture.orderReference?.messages||[],{amount:order.amount,confirmIgn:true});
+  const selected=require('./order-chat-flow').selection(capture.orderReference?.messages||[],{amount:order.amount,confirmIgn:true,orderId:order.id});
   const commands=events.filter(e=>e.kind==='command').map(e=>JSON.parse(e.data).command);
   const messages=db.prepare(`SELECT logical_key,state,reason,updated_ms,next_check_ms,checks
     FROM message_outbox WHERE order_id=? ORDER BY updated_ms,logical_key`).all(id);

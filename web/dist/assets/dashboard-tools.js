@@ -1,8 +1,12 @@
+import {createCustomerMessages} from './customer-messages.js';
 const tabs = new Set(['overview','pairs','analytics','orders','eldorado-setup','treasury','sales','sellers','user-data','env-studio','wallet','ai-chat','controls']);
 const aliases={clients:'pairs',connections:'eldorado-setup',buying:'controls',review:'orders'};
 export function tabFromHash(){const id=location.hash.slice(1);return aliases[id]||(tabs.has(id)?id:'pairs');}
 
+import { minecraftOnboarding } from './minecraft-onboarding.js';
+
 export function dashboardTools(React,request){
+  const MinecraftOnboarding=minecraftOnboarding(React,request);
   const {createElement:h,useState,useEffect}=React;
   const post=(url,body)=>request(url,{method:'POST',body:JSON.stringify(body)});
   const button=(label,onClick,disabled=false,primary=false)=>h('button',{type:'button',onClick,disabled,className:primary?'desk-primary':undefined},label);
@@ -147,14 +151,16 @@ export function dashboardTools(React,request){
       await action.run(async()=>{const data=await post('/v3/game/pair',body);downloadPair(data);setOverview(await request('/v3/overview'));onChange?.();setShow(false);return 'Pairing file downloaded. Save it in this instance’s config folder, then restart Minecraft.';});
     }
     return h('div',{id:'prism-clients'},section('Minecraft delivery clients',
-      note('Open Prism Launcher → Autosell Delivery using your paired Minecraft account. Join the configured server and keep the game open during delivery.'),
       ...(overview?.accounts||[]).map(a=>h('div',{key:a.id,className:'desk-row'},h('strong',null,a.id+' · '+a.ign),h('span',{className:a.connected?'desk-online':'desk-offline'},a.connected?'Online':'Offline'),
         button('Capture screenshot',()=>action.run(async()=>{const result=await post('/v3/game/capture',{accountId:a.id});setImage(result.url);}),action.busy||!a.connected))),
-      error?note(error):null,row(button(show?'Close pairing':'Pair a client',()=>setShow(!show),action.busy)),
+      image?h('div',null,h('img',{src:image,className:'desk-thumb',alt:'Actual Minecraft client capture'}),button('Close screenshot',()=>setImage(null))):null,
+      error?note(error):null,
+      h(MinecraftOnboarding,{key:'minecraft-onboarding',pairs,accounts:overview?.accounts||[],onChange:async()=>{setOverview(await request('/v3/overview'));}}),
+      row(button(show?'Close manual pairing':'Manual pairing download',()=>setShow(!show),action.busy)),
       show?h('form',{className:'desk-form',onSubmit:pair},label('Account slot',h('select',{name:'accountId',defaultValue:slots.includes('seller1')?'seller1':slots[0]},...slots.map(id=>h('option',{key:id},id)))),
         label('Exact Minecraft IGN',h('input',{required:true,name:'ign',autoComplete:'off',maxLength:17})),h('button',{disabled:action.busy||!slots.length},'Download pairing file'),
         note('Downloading a new pairing file replaces the old token for this slot.')):null,
-      image?h('div',null,h('img',{src:image,className:'desk-thumb',alt:'Actual Minecraft client capture'}),button('Close screenshot',()=>setImage(null))):null,action.status));
+      action.status));
   }
   function CompetitorPrices(){
     const [preview,setPreview]=useState(null),[loading,setLoading]=useState(false),[error,setError]=useState('');
@@ -198,14 +204,7 @@ export function dashboardTools(React,request){
         !options.accounts.length?note('Pair a client under AutoSell Pairs first.'):null):null,action.status,
       listing.offerId&&listing.apiBinding?h(CompetitorPrices,{key:[listing.offerId,listing.apiBinding.gameId,listing.apiBinding.serverId].join('/') }):null));
   }
-  function ChatGuide(){
-    const [messages,setMessages]=useState(null),[error,setError]=useState('');
-    useEffect(()=>{let live=true;fetch('/buyer-guides/messages.json').then(r=>{if(!r.ok)throw Error('Templates unavailable');return r.json();}).then(data=>{if(live)setMessages(data);}).catch(e=>{if(live)setError(e.message);});return()=>{live=false;};},[]);
-    const fields={buyer:'Buyer',amount:'500M',ign:'YourName',url:'[order link]'};
-    const step=(key,title,images=[])=>h('div',{key,className:'desk-example'},h('strong',null,title),h('pre',null,messages[key].replace(/\{(\w+)\}/g,(_,id)=>fields[id])),...images.map(file=>h('img',{key:file,src:'/buyer-guides/'+file,alt:file.split('.')[0]})));
-    return section('Eldorado buyer messages',note('Example for a 500M order. The live conversation uses the order amount, confirmed IGN and order link.'),
-      ...(messages?[step('opening','Greeting',['which-name.jpg']),step('confirm','Confirm the recipient'),step('sending','Before payment'),step('proof','After payment verification'),note('The buyer receives cropped payment evidence. The original screenshot stays in the owner’s proof record.'),step('delivered','After Eldorado marks the order delivered',['how-to-confirm-1.png','how-to-confirm-2.png'])]:[note(error||'Loading messages…')]));
-  }
+  const ChatGuide=createCustomerMessages(React,request);
   function BuyingPanel(){
     const [preview,setPreview,error]=useData('/v3/discord/preview'),action=useAction();
     if(!preview)return section('Discord buying panel',note(error||'Loading designs…'));

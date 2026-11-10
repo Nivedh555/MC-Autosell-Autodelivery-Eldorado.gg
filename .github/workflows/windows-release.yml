@@ -1,0 +1,127 @@
+name: Windows desktop validation and release
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: windows-2025
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.0'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm ci --prefix desktop --no-audit --no-fund
+      - name: Install the pinned Playwright browser for dashboard tests
+        run: node node_modules/playwright/cli.js install chromium
+      - name: Verify packaged Minecraft mod checksums
+        shell: pwsh
+        run: ./windows/verify-release.ps1
+      - run: npm run check
+      - run: npm run test:local
+      - run: npm test --prefix desktop
+      - name: Stage locked runtime and frontend resources
+        run: npm run prepare:resources --prefix desktop
+      - name: Exercise bundled runtime on isolated data
+        run: npm run test:runtime --prefix desktop
+        env:
+          AUTOSELL_DESKTOP_TEST: '1'
+      - name: Build development installer
+        run: npm run package --prefix desktop
+      - name: Exercise packaged desktop
+        run: npm run test:installed --prefix desktop
+        env:
+          AUTOSELL_DESKTOP_TEST: '1'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: autosell-windows-development
+          path: |
+            desktop/dist/Autosell-Setup-*.exe
+            desktop/test-results/*.json
+            desktop/test-results/*.png
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: validate
+    runs-on: windows-2025
+    timeout-minutes: 50
+    environment: windows-release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.0'
+      - run: npm ci --no-audit --no-fund
+      - run: npm ci --prefix desktop --no-audit --no-fund
+      - name: Require matching tag and protected signing configuration
+        run: node desktop/scripts/configure-release.js
+        env:
+          AUTOSELL_PUBLISHER_NAME: ${{ vars.AUTOSELL_PUBLISHER_NAME }}
+          AUTOSELL_UPDATE_PUBLIC_KEY: ${{ vars.AUTOSELL_UPDATE_PUBLIC_KEY }}
+          AUTOSELL_UPDATE_PRIVATE_KEY: ${{ secrets.AUTOSELL_UPDATE_PRIVATE_KEY }}
+          CSC_LINK: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+      - name: Stage runtime without release signing credentials
+        run: npm run prepare:resources --prefix desktop
+      - name: Package and sign Windows binaries
+        run: npm run package --prefix desktop
+        env:
+          CSC_LINK: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+      - name: Verify Windows signatures
+        shell: pwsh
+        run: |
+          $files = @((Get-ChildItem desktop/dist/Autosell-Setup-*.exe).FullName, (Resolve-Path 'desktop/dist/win-unpacked/Autosell V3.exe').Path)
+          foreach ($file in $files) {
+            $signature = Get-AuthenticodeSignature -LiteralPath $file
+            if ($signature.Status -ne 'Valid') { throw "Invalid Authenticode signature on $file" }
+          }
+      - name: Test signed packaged runtime
+        run: npm run test:installed --prefix desktop
+        env:
+          AUTOSELL_DESKTOP_TEST: '1'
+      - name: Generate release notes
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --method POST "repos/$env:GITHUB_REPOSITORY/releases/generate-notes" -f "tag_name=$env:GITHUB_REF_NAME" --jq .body | Set-Content -LiteralPath desktop/dist/release-notes.md -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw 'Release notes generation failed' }
+      - name: Sign and verify update metadata
+        run: node desktop/scripts/sign-release.js
+        env:
+          AUTOSELL_UPDATE_PRIVATE_KEY: ${{ secrets.AUTOSELL_UPDATE_PRIVATE_KEY }}
+      - name: Publish tested signed release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME --verify-tag --draft --title "Autosell V3 $env:GITHUB_REF_NAME" --notes-file desktop/dist/release-notes.md
+          if ($LASTEXITCODE -ne 0) { throw 'Draft release creation failed' }
+          $beta = $env:GITHUB_REF_NAME -match '-beta\.\d+$'
+          $channel = if ($beta) { 'beta' } else { 'stable' }
+          $yaml = if ($beta) { 'beta.yml' } else { 'latest.yml' }
+          $files = @((Get-ChildItem desktop/dist/Autosell-Setup-*.exe).FullName,(Get-ChildItem desktop/dist/Autosell-Setup-*.blockmap).FullName,"desktop/dist/$yaml","desktop/dist/$channel-manifest.json","desktop/dist/$channel-manifest.json.sig",'desktop/dist/SHA256SUMS')
+          gh release upload $env:GITHUB_REF_NAME @files
+          if ($LASTEXITCODE -ne 0) { throw 'Release artifact upload failed' }
+          if ($beta) { gh release edit $env:GITHUB_REF_NAME --draft=false --prerelease --latest=false } else { gh release edit $env:GITHUB_REF_NAME --draft=false --latest }
+          if ($LASTEXITCODE -ne 0) { throw 'Release publication failed' }

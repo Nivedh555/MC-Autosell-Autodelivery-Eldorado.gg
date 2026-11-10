@@ -349,6 +349,7 @@ class LtcWallet {
 
                                                      
   _broadcast(hex) {
+    services.maintenance?.assertCanDispatch();
     const base = services.config.wallet.apiBase;
     return this._tryProviders({
       blockcypher: async () => {

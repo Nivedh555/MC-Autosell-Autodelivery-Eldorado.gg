@@ -12,6 +12,7 @@ function pairFor(account) {
 function hasHolder(pair) { return Boolean(pair?.sellerEmail?.trim() || pair?.sellerIgn?.trim()); }
 function deliveryAccount(pair) { return canonical(hasHolder(pair) ? pair.sellerId : pair.buyerId); }
 async function globallyEnabled(settings = services.settings) {
+  if(services.maintenance?.blocked())return false;
   return !(await settings?.get('general.bot.paused')) && !services.store?.autosellPaused?.();
 }
 async function deliveryAllowed(account, settings = services.settings) {

@@ -64,7 +64,7 @@ class ChatScheduler {
     if(config.autoSend!==true || config.openingEnabled===false)return false;
     if(!s.marketplace.capabilities.getMessages || !s.marketplace.capabilities.sendMessage)throw Error('Opening message cannot be sent: the real order chat controls have not been reviewed. No coins were sent.');
     const opening=await this.agent.sendOpeningMessage(orderId);
-    if(opening.skippedKnownRecipient)return true;
+    if(opening.skippedKnownRecipient||opening.skippedConfigured)return true;
     const pending=s.db.raw().prepare("SELECT * FROM buyer_messages WHERE order_id=? AND intent='opening' AND direction='out' ORDER BY created_ms LIMIT 1").get(orderId);
     if(!pending)throw Error('Opening message was not prepared for this funded order.');
     if(pending.state==='browser-confirmed-sent')return true;
@@ -141,14 +141,15 @@ class ChatScheduler {
         order.orderReference=reference;
         archive.annotate(order.id,{chatReason:null});
         if(reference.status!=='Pending delivery')continue;
-        const flow=require('./order-chat-flow'),recipient=flow.selection(reference.messages,{...config,amount:flow.quantityForOrder(order,reference)});
+        const flow=require('./order-chat-flow'),recipient=flow.selection(reference.messages,{...config,amount:flow.quantityForOrder(order,reference),orderId:order.id,services:s});
         const wakeKey=JSON.stringify([recipient.latest?.ign,recipient.confirmationMessageId]);
         if(!order.executionRecorded&&!order.ownerDeliveryHold&&recipient.latest&&!recipient.requiresClarification&&recipient.confirmed&&this.recipientWakes.get(order.id)!==wakeKey){this.recipientWakes.set(order.id,wakeKey);s.orderPoller?.requestPoll?.();}
         this.recoverObservedDrafts(order.id);
         // Timestamp hydration can change a local inbound fingerprint. A visible
         // amount/recipient-bound prompt already satisfies that confirmation draft.
         if(recipient.promptMessageId&&recipient.latest){
-          db.prepare("UPDATE buyer_messages SET state='stale-draft' WHERE order_id=? AND direction='out' AND intent='recipient_confirmation' AND state='draft' AND text=?").run(order.id,flow.confirmationPrompt(recipient.latest.ign,flow.quantityForOrder(order,reference)));
+          const visible=reference.messages.find(message=>message.id===recipient.promptMessageId);
+          if(visible)db.prepare("UPDATE buyer_messages SET state='stale-draft' WHERE order_id=? AND direction='out' AND intent='recipient_confirmation' AND state='draft' AND text=?").run(order.id,visible.text);
         }
         if(config.openingEnabled!==false){
           if(!s.gameBridge&&(config.openingMessage||require('./order-chat-flow').DEFAULT_OPENING).includes('(example picture attached)')&&!db.prepare("SELECT id FROM buyer_messages WHERE order_id=? AND intent='opening' AND direction='out'").get(order.id)&&s.browserBridge.uploadOrderEvidenceObserved){
@@ -173,7 +174,7 @@ class ChatScheduler {
         }
         if(config.minimalChat!==false){
           db.prepare("UPDATE buyer_messages SET intent='recipient_confirmation' WHERE order_id=? AND id LIKE 'ign-confirm:%' AND state='draft'").run(order.id);
-          db.prepare("UPDATE buyer_messages SET state='stale-draft' WHERE order_id=? AND direction='out' AND source='local-rule-engine' AND state='draft' AND intent NOT IN ('opening','recipient_confirmation','recipient_correction','recipient_clarification')").run(order.id);
+          db.prepare("UPDATE buyer_messages SET state='stale-draft' WHERE order_id=? AND direction='out' AND source='local-rule-engine' AND state='draft' AND intent NOT IN ('opening','recipient_confirmation','recipient_correction','recipient_clarification','customer_event')").run(order.id);
         }
         const pending=db.prepare("SELECT * FROM buyer_messages WHERE order_id=? AND direction='out' AND state='draft' AND source='local-rule-engine' AND due_ms<=? ORDER BY due_ms LIMIT 1").get(order.id,Date.now());
         if(!pending)continue;

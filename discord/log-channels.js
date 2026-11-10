@@ -14,7 +14,7 @@ const { buildLogPermissions } = require('./log-permissions');
 
 const services = require('../services');
 
-const STORE_FILE = path.resolve(__dirname, '..', 'data', 'log-channels.json');
+const STORE_FILE = require('../ops/runtime-paths').data('log-channels.json');
 const CATEGORY_NAME = '🌸 AUTOBUY LOGS';
 
 const CHANNELS = [
