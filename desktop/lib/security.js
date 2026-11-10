@@ -7,7 +7,7 @@ function externalUrl(value) {
   if (typeof value !== 'string' || value.length > 2048) throw Error('Invalid external link');
   const url = new URL(value);
   if (url.protocol !== 'https:' || url.username || url.password || (url.port && url.port !== '443')) throw Error('Only standard HTTPS links can be opened');
-  const allowed = ['eldorado.gg', 'www.eldorado.gg', 'github.com', 'fabricmc.net', 'www.minecraft.net', 'adoptium.net'];
+  const allowed = ['eldorado.gg', 'www.eldorado.gg', 'github.com', 'fabricmc.net', 'www.minecraft.net', 'adoptium.net', 'prismlauncher.org', 'litecoinspace.org'];
   if (!allowed.includes(url.hostname)) throw Error('External link host is not allowed');
   return url.href;
 }

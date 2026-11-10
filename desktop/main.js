@@ -17,6 +17,7 @@ if (override && !path.isAbsolute(override)) throw Error('Profile directory must 
 const directory = override || path.join(process.env.LOCALAPPDATA || app.getPath('appData'), 'Autosell V3');
 app.setPath('userData', path.join(directory, 'desktop'));
 fs.mkdirSync(app.getPath('userData'), { recursive: true });
+saved.write(path.join(directory, 'desktop-owner.json'), { appId: 'gg.autosell.desktop' });
 const workspace = path.join(directory, 'workspace');
 const runtime = app.isPackaged ? path.join(process.resourcesPath, 'runtime') : path.join(__dirname, 'staging');
 const backend = new Supervisor(runtime, workspace);
@@ -26,6 +27,14 @@ const status = { phase: 'starting', reason: 'Preparing your workspace…', origi
 const preferenceFile = path.join(directory, 'window.json');
 const onboardingFile = path.join(directory, 'onboarding.json');
 const credentialFile = path.join(directory, 'vault.dpapi');
+const diagnosticFile = path.join(directory, 'desktop-diagnostics.json');
+let startupDiagnostic = '';
+function diagnose(event, message) {
+  const entries = saved.read(diagnosticFile, []);
+  const recent = Array.isArray(entries) ? entries.slice(-199) : [];
+  recent.push({ at: new Date().toISOString(), event, message });
+  try { saved.write(diagnosticFile, recent); } catch {}
+}
 function migrationPending() {
   const journal = path.join(workspace + '.migration', 'migration.json');
   if (!fs.existsSync(journal)) return false;
@@ -135,6 +144,8 @@ async function startBackend(secret, recovery = false) {
   if (starting || importing || backend.child) throw Error('Workspace initialization is already in progress');
   if (migrationPending()) throw Error('Finish the interrupted import. Choose the original installation folder again to resume verification.');
   starting = true;
+  startupDiagnostic = '';
+  diagnose('backend-start', recovery ? 'Starting under the recovery maintenance fence' : 'Opening the configured workspace');
   passphrase = secret || passphrase;
   fs.mkdirSync(workspace, { recursive: true });
   publish({ phase: 'starting', reason: 'Opening the vault and payment journals…', origin: '' });
@@ -148,8 +159,14 @@ async function startBackend(secret, recovery = false) {
     saved.write(onboardingFile, { complete: true });
     await updates.validateRestart();
     await refreshMaintenance();
+    diagnose('backend-ready', 'Authenticated dashboard and backend version verified');
     setTimeout(() => updates.check().catch(() => {}), 15000).unref();
-  } catch (error) { publish({ phase: 'error', reason: error.message, origin: '' }); throw error; }
+  } catch (error) {
+    const reason = startupDiagnostic || error.message;
+    diagnose('backend-start-failed', reason);
+    publish({ phase: 'error', reason, origin: '' });
+    throw Error(reason);
+  }
   finally { starting = false; }
 }
 async function safeQuit() {
@@ -176,7 +193,8 @@ function registerIpc() {
   });
   handle('desktop:state', () => snapshot());
   handle('desktop:start', async value => {
-    if (!value || typeof value.passphrase !== 'string' || value.passphrase.length < 12 || value.passphrase.length > 1024 || typeof value.remember !== 'boolean') throw Error('Use a vault passphrase between 12 and 1024 characters');
+    const minimumLength = fs.existsSync(path.join(workspace, 'data', 'vault.enc')) ? 1 : 12;
+    if (!value || typeof value.passphrase !== 'string' || value.passphrase.length < minimumLength || value.passphrase.length > 1024 || typeof value.remember !== 'boolean') throw Error('Enter the existing vault passphrase, or at least 12 characters for a new workspace');
     if (backend.child || starting) throw Error('Backend is already running');
     await startBackend(value.passphrase, attempts > 0);
     if (value.remember) {
@@ -242,7 +260,20 @@ else {
     secureSession();
     updates = new Updates({ updater: autoUpdater, config: releaseConfig, version: app.getVersion(), directory, backend, packaged: app.isPackaged, install: () => { quitting = true; autoUpdater.quitAndInstall(false, true); } });
     updates.on('change', () => publish());
+    backend.on('diagnostic', chunk => {
+      // Only recognized categories reach the desktop journal. Raw backend output
+      // can contain account identifiers and must stay out of the shell/renderer.
+      if (/EADDRINUSE/.test(chunk)) startupDiagnostic = 'The Minecraft bridge port is already in use. Exit the previous Autosell backend safely before opening this workspace.';
+      else if (/Invalid passphrase|vault passphrase required|VAULT_PASSPHRASE/i.test(chunk)) startupDiagnostic = 'The vault could not be unlocked. Enter the passphrase used by this workspace.';
+      else if (/Another Autosell process|workspace was migrated/i.test(chunk)) startupDiagnostic = 'This workspace is already running or was retired by migration. Open the active desktop instance.';
+      else if (/SQLITE_CORRUPT|database disk image is malformed/i.test(chunk)) startupDiagnostic = 'SQLite reported damaged data. Preserve the workspace and restore a verified backup after reconciling payment history.';
+    });
+    backend.on('slow-start', () => {
+      diagnose('backend-slow-start', 'The backend remains alive and supervised after the readiness deadline');
+      publish({ phase: 'starting', reason: 'Startup is taking longer than expected. Autosell is still waiting for its backend to finish safely.' });
+    });
     backend.on('exit', info => {
+      diagnose('backend-exit', 'Exit code ' + info.code + ', signal ' + info.signal + ', expected ' + info.expected + ', previously ready ' + info.wasReady);
       if (info.expected || quitting) return;
       publish({ phase: 'error', origin: '', reason: 'The backend stopped. Payment journals will be reconciled before activity resumes.' });
       if (info.wasReady && attempts < 3) {

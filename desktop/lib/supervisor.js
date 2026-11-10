@@ -25,7 +25,7 @@ function runtimeEnvironment(runtime, home, token, passphrase, recovery) {
   return env;
 }
 class Supervisor extends EventEmitter {
-  constructor(runtime, home) {
+  constructor(runtime, home, { spawnProcess = spawn, startupTimeoutMs = 90000 } = {}) {
     super();
     this.runtime = runtime;
     this.home = home;
@@ -34,13 +34,15 @@ class Supervisor extends EventEmitter {
     this.token = '';
     this.origin = '';
     this.expectedExit = false;
+    this.spawnProcess = spawnProcess;
+    this.startupTimeoutMs = startupTimeoutMs;
   }
   start(passphrase, recovery = false) {
     if (this.child) throw Error('Backend is already running');
     this.expectedExit = false;
     this.origin = '';
     this.token = crypto.randomBytes(32).toString('hex');
-    const child = spawn(path.join(this.runtime, 'node', 'Autosell-Worker.exe'), [path.join(this.runtime, 'backend', 'index.js')], {
+    const child = this.spawnProcess(path.join(this.runtime, 'node', 'Autosell-Worker.exe'), [path.join(this.runtime, 'backend', 'index.js')], {
       cwd: this.home,
       env: runtimeEnvironment(this.runtime, this.home, this.token, passphrase, recovery),
       windowsHide: true,
@@ -53,8 +55,9 @@ class Supervisor extends EventEmitter {
       let ready = false;
       const timeout = setTimeout(() => {
         this.emit('slow-start');
-        reject(Error('Backend startup is taking longer than expected. Inspect the application logs before retrying.'));
-      }, 90000);
+        // An alive process may already have opened financial journals. Keep its
+        // readiness promise pending so a later verified signal still opens the UI.
+      }, this.startupTimeoutMs);
       child.on('message', message => {
         if (!message || typeof message !== 'object') return;
         if (message.type === 'ready' && !ready && Number.isInteger(message.port) && message.port > 0 && message.port <= 65535) {
@@ -74,7 +77,16 @@ class Supervisor extends EventEmitter {
           else pending.resolve(message);
         }
       });
-      child.once('error', error => { clearTimeout(timeout); reject(Error('Bundled backend could not launch (' + error.code + ').')); });
+      child.once('error', error => {
+        clearTimeout(timeout);
+        if (!ready && !child.pid && this.child === child) {
+          // Spawn failure has no running worker and may emit close without exit.
+          this.child = null;
+          this.token = '';
+          this.origin = '';
+        }
+        reject(Error('Bundled backend could not launch (' + error.code + ').'));
+      });
       child.once('exit', (code, signal) => {
         clearTimeout(timeout);
         const expected = this.expectedExit;

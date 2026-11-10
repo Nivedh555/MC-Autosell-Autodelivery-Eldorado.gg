@@ -28,6 +28,7 @@ function render(next) {
   byId('unlock-form').hidden = state.migrationPending || ['starting', 'importing'].includes(backend.phase);
   byId('import-button').textContent = state.migrationPending ? 'Resume existing import' : 'Import existing installation';
   byId('remember').disabled = !state.canRemember;
+  byId('passphrase').minLength = state.hasWorkspace ? 1 : 12;
   const update = state.updates || {};
   byId('update-status').textContent = labels[update.phase] || 'Update status unavailable';
   byId('update-reason').textContent = update.reason || '';

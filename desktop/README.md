@@ -34,11 +34,13 @@ The desktop acquires Electron's single-instance lock. The backend also holds its
 
 Closing the window keeps the backend running in the system tray. **Exit safely** persists maintenance, waits for the real payment state and account locks to become safe, and then shuts down. Windows can impose shutdown deadlines, so persisted uncertainty journals remain necessary after an operating-system interruption.
 
-A renderer crash recreates its UI independently. A backend crash permits at most three delayed restarts in a desktop session. Recovery opens the database under a durable maintenance fence, and **Resume after reconciliation** is explicit. Inspect unresolved payments and game connectivity before resuming. An unsafe result continues to hold dispatch and installation.
+A renderer crash recreates its UI independently. A backend crash permits at most three delayed restarts in a desktop session. Recovery opens the database under a durable maintenance fence, and **Resume after reconciliation** is explicit. Inspect unresolved payments and game connectivity before resuming. An unsafe result continues to hold dispatch and installation. `desktop-diagnostics.json` retains 200 lifecycle entries and recognized startup error categories without raw backend output or credentials. A slow live backend remains supervised and can still complete startup after the initial readiness deadline.
 
 Updates download without interrupting the dashboard. **Restart and install safely** persists the update target, fences new financial operations, waits for admitted operations, checks uncertainty and account locks, checks safety again, and then stops the backend. A matching installed version with a matching safe persisted target may resume automatically. A failed or mismatched upgrade stays fenced for operator recovery.
 
-The uninstaller preserves `%LOCALAPPDATA%\Autosell V3`. Reinstallation uses the same workspace. To permanently remove personal data, first export and verify the required journals and credentials, exit safely, uninstall, and explicitly remove that directory yourself.
+The uninstaller preserves `%LOCALAPPDATA%\Autosell V3` by default. Reinstallation uses the same workspace. To remove the application and its personal data, exit safely, open **Uninstall Autosell V3** from Start Menu or Windows Installed Apps, select **Remove all Autosell data**, and confirm the permanent deletion. That option removes the owned desktop database, vault, journals, evidence, browser sessions, logs, window preferences and update state. Export anything you need first. Upgrades always preserve this data. Original migration sources, independently managed Prism instances, and custom `--profile-dir` locations require separate owner-managed removal.
+
+Complete silent removal requires both explicit flags `--remove-all-autosell-data --confirm-remove-all-autosell-data` together with `/S`. A single flag preserves data. The removal helper validates the exact owned application root and its ownership marker, checks running processes and workspace locks, and refuses junctions or symbolic links before deletion.
 
 ## Publishing stable and beta releases
 

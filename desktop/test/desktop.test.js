@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { EventEmitter } = require('node:events');
 const { verifyManifest, verifyUpdateInfo, externalUrl, trustedFrame } = require('../lib/security');
-const { runtimeEnvironment } = require('../lib/supervisor');
+const { runtimeEnvironment, Supervisor } = require('../lib/supervisor');
 const { Updates } = require('../lib/updates');
 const saved = require('../lib/state');
 const keys = crypto.generateKeyPairSync('ed25519');
@@ -50,6 +50,42 @@ test('runtime uses explicit bundled Node and browser paths without inheriting No
     assert.equal(env.AUTOSELL_DESKTOP_RECOVERY, '1');
     assert.equal(env.PLAYWRIGHT_BROWSERS_PATH, path.join('C:/runtime', 'browsers'));
   } finally { if (old === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = old; }
+});
+test('a slow live backend remains supervised and late readiness completes the original startup', async () => {
+  const child = new EventEmitter();
+  child.stdout = new EventEmitter();
+  child.stderr = new EventEmitter();
+  child.connected = true;
+  const supervisor = new Supervisor('C:/runtime', 'C:/profile', { spawnProcess: () => child, startupTimeoutMs: 5 });
+  let slow = false, settled = false;
+  supervisor.on('slow-start', () => { slow = true; });
+  const started = supervisor.start('test-vault').finally(() => { settled = true; });
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(slow, true);
+  assert.equal(settled, false);
+  assert.equal(supervisor.child, child);
+  assert.throws(() => supervisor.start('duplicate'), /already running/);
+  child.emit('message', { type: 'ready', port: 43123, version: '3.0.0' });
+  assert.equal((await started).port, 43123);
+  assert.equal(supervisor.origin, 'http://127.0.0.1:43123');
+});
+test('a failed executable spawn releases the unlaunched child so startup can be retried', async () => {
+  const children = [];
+  const spawnProcess = () => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    children.push(child);
+    return child;
+  };
+  const supervisor = new Supervisor('C:/runtime', 'C:/profile', { spawnProcess });
+  const failed = supervisor.start('test-vault');
+  children[0].emit('error', Object.assign(Error('Missing executable'), { code: 'ENOENT' }));
+  await assert.rejects(failed, /ENOENT/);
+  assert.equal(supervisor.child, null);
+  const retried = supervisor.start('test-vault');
+  children[1].emit('message', { type: 'ready', port: 43124 });
+  assert.equal((await retried).port, 43124);
 });
 function fixture(t, safe = false) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'autosell-desktop-test-'));

@@ -79,12 +79,16 @@ class Updates extends EventEmitter {
     try { await this.updater.downloadUpdate(); } catch (error) { this.fail(error); throw error; }
   }
   async requestInstall() {
+    if (this.installationInProgress) return this.state;
     if (!['downloaded', 'waiting'].includes(this.state.phase)) throw Error('A verified update must finish downloading first');
+    this.installationInProgress = true;
+    try {
     this.set({ phase: 'waiting', reason: 'Waiting for active deliveries to finish.' });
     const status = await this.backend.control('maintenance', { targetVersion: this.state.latestVersion, reason: 'update' });
     if (status.safe !== true) { this.set({ reason: status.reason || 'An executing or uncertain payment is holding this update.' }); return this.state; }
     await this.finishInstall();
     return this.state;
+    } finally { this.installationInProgress = false; }
   }
   async finishInstall() {
     // Backend status is rechecked after the persistent fence, immediately before shutdown.

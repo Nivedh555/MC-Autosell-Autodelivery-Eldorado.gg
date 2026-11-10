@@ -17,7 +17,7 @@ module.exports = {
     icon: 'assets/icon.ico',
     executableName: 'Autosell V3',
     verifyUpdateCodeSignature: true,
-    ...(release.enabled ? { publisherName: release.publisherName } : {})
+    ...(release.enabled ? { signtoolOptions: { publisherName: release.publisherName } } : {})
   },
   nsis: {
     oneClick: false,

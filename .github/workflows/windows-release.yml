@@ -45,10 +45,11 @@ jobs:
           AUTOSELL_DESKTOP_TEST: '1'
       - name: Build development installer
         run: npm run package --prefix desktop
-      - name: Exercise packaged desktop
-        run: npm run test:installed --prefix desktop
+      - name: Exercise the installed desktop, updates and uninstall choices on the disposable runner
+        shell: pwsh
+        run: ./desktop/scripts/test-windows-installer.ps1
         env:
-          AUTOSELL_DESKTOP_TEST: '1'
+          AUTOSELL_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
       - uses: actions/upload-artifact@v4
         with:
           name: autosell-windows-development
@@ -95,10 +96,11 @@ jobs:
             $signature = Get-AuthenticodeSignature -LiteralPath $file
             if ($signature.Status -ne 'Valid') { throw "Invalid Authenticode signature on $file" }
           }
-      - name: Test signed packaged runtime
-        run: npm run test:installed --prefix desktop
+      - name: Exercise the signed installer and installed runtime on the disposable runner
+        shell: pwsh
+        run: ./desktop/scripts/test-windows-installer.ps1
         env:
-          AUTOSELL_DESKTOP_TEST: '1'
+          AUTOSELL_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
       - name: Generate release notes
         shell: pwsh
         env:
