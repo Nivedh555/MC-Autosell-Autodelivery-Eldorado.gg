@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "autosell_bridge",
+  "version": "${version}",
+  "name": "Autosell V3 Bridge",
+  "description": "Local authenticated bridge for the Autosell desktop dashboard.",
+  "environment": "client",
+  "mixins": ["autosell-receipt.mixins.json"],
+  "entrypoints": { "client": ["app.autosell.bridge.AutosellBridge"] },
+  "depends": { "fabricloader": ">=0.20.1", "minecraft": "26.3", "java": ">=25", "fabric-api": "*" }
+}

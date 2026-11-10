@@ -1,0 +1,9 @@
+{
+  "gameId": "278",
+  "serverId": "default",
+  "unitSystem": "Unit1000000",
+  "category": "Currency",
+  "source": "https://www.eldorado.gg/donutsmp-money/g/278",
+  "verifiedEndpoint": "/api/v1/currency-management/offers/groups?gameId=278&category=Currency&pageIndex=1&pageSize=1",
+  "verifiedDate": "2026-10-10"
+}

@@ -1,0 +1,51 @@
+{
+  "name": "autosell-v3",
+  "version": "3.0.0",
+  "description": "Autosell V3 for Linux: Eldorado delivery, Minecraft 26.3 Fabric bridge and Discord LTC buying.",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "test": "node --test test/unit/*.test.js",
+    "sim": "node --test --test-concurrency=1 test/integration/*.test.js",
+    "test:dashboard": "node --test --no-warnings test/ui/*.test.js",
+    "test:v3": "node --test test/v3/*.test.js",
+    "check": "node ops/check-syntax.js",
+    "test:local": "node ops/test-local.js"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "dependencies": {
+    "@bitcoinerlab/secp256k1": "^1.1.1",
+    "bip32": "^4.0.0",
+    "bip39": "^3.1.0",
+    "bitcoinjs-lib": "^6.1.6",
+    "cors": "^2.8.6",
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5",
+    "ecpair": "^2.1.0",
+    "express": "^4.21.2",
+    "gsap": "^3.15.0",
+    "minecraft-protocol": "^1.66.2",
+    "mineflayer": "^4.37.1",
+    "mineflayer-pathfinder": "^2.4.5",
+    "playwright": "1.63.0",
+    "pngjs": "7.0.0",
+    "prismarine-auth": "^3.1.1",
+    "uuid": "^11.0.3",
+    "ws": "8.22.0"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0"
+  },
+  "overrides": {
+    "@azure/msal-node": {
+      "uuid": "11.1.1"
+    },
+    "yggdrasil": {
+      "uuid": "11.1.1"
+    }
+  }
+}

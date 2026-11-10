@@ -1,0 +1,7 @@
+{
+  "required": true,
+  "package": "app.autosell.bridge.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": ["ChatLines", "FocusedChat", "RenderedFrame"],
+  "injectors": {"defaultRequire": 1}
+}

@@ -1,0 +1,2 @@
+CREATE TABLE IF NOT EXISTS restore_control (id INTEGER PRIMARY KEY CHECK(id=1), held INTEGER NOT NULL DEFAULT 0, reason TEXT);
+INSERT OR IGNORE INTO restore_control(id,held) VALUES(1,0);

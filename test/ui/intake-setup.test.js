@@ -1,0 +1,26 @@
+'use strict';
+const {test}=require('node:test');const assert=require('node:assert/strict');const express=require('express');const path=require('node:path');const {chromium}=require('playwright');
+test('intake setup signs in, saves caps, captures a receipt and fits mobile without live services',async t=>{
+  const app=express();app.use(express.json());let authenticated=false;let receiptRequest;let policyRequest;
+  const status={success:true,enabled:false,accounts:[{id:'buyer1',ign:'FixtureIntake',online:true}],incomingConfigured:false,balanceConfigured:true,payoutPolicy:{},walletConfigured:true,sendEnabled:false,buyMoneyEnabled:true,buySkellyEnabled:true,captures:[]};
+  app.get('/intake-setup',(_req,res)=>res.sendFile(path.resolve('web/intake-setup.html')));
+  app.get('/assets/gsap.min.js',(_req,res)=>res.sendFile(require.resolve('gsap/dist/gsap.min.js')));app.use('/assets',express.static(path.resolve('web/dist/assets')));
+  app.post('/api/auth/login',(req,res)=>{assert.equal(req.body.password,'fixture-password');authenticated=true;res.cookie('csrfToken','fixture-csrf');res.json({success:true});});
+  app.get('/api/intake/status',(_req,res)=>authenticated?res.json(status):res.status(401).json({error:'Unauthorized'}));
+  app.post('/api/intake/policy',(req,res)=>{policyRequest=req.body;status.payoutPolicy=req.body;res.json({success:true});});
+  app.post('/api/config',(req,res)=>{status.sendEnabled=req.body.ltcSendEnabled;res.json({success:true});});
+  app.post('/api/marketplace/controls',(req,res)=>{status.enabled=req.body.enabled;res.json({success:true});});
+  app.post('/api/ops/calibration/start',(req,res)=>{assert.equal(req.body.accountId,'buyer1');status.captures=[{id:'fixture-capture',account_id:'buyer1',started_ms:Date.now(),state:'CAPTURING'}];res.json({id:'fixture-capture'});});
+  app.get('/api/ops/calibration/fixture-capture',(_req,res)=>res.json({events:[{id:1,kind:'chat',data:JSON.stringify({raw:'Balance: 100',position:'system',sender:null})},{id:2,kind:'chat',data:JSON.stringify({raw:'Received $1 from TestPlayer',position:'system',sender:null})}]}));
+  app.post('/api/intake/incoming',(req,res)=>{receiptRequest=req.body;status.incomingConfigured=true;res.json({success:true,message:'Receipt format saved.'});});
+  const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));t.after(()=>new Promise(resolve=>server.close(resolve)));
+  const browser=await chromium.launch({channel:'chrome',headless:true});t.after(()=>browser.close());const page=await browser.newPage({viewport:{width:1280,height:900},reducedMotion:'reduce'});const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.goto(`http://127.0.0.1:${server.address().port}/intake-setup`);await page.locator('#password').fill('fixture-password');await page.getByRole('button',{name:'Sign in',exact:true}).click();await page.locator('#setup').waitFor({state:'visible'});
+  await page.locator('#per-tx').fill('5.123456');await page.locator('#per-day').fill('20');await page.locator('#payout-enabled').check();await page.locator('#send-enabled').check();await page.getByRole('button',{name:'Save payout settings'}).click();await page.getByText('Payout settings saved. No transaction was sent.',{exact:true}).waitFor();
+  assert.equal(policyRequest.addressMode,'linked-seller');assert.equal(policyRequest.maxPerTxFiatMicros,'5123456');assert.equal(policyRequest.maxPerDayFiatMicros,'20000000');assert.equal(status.sendEnabled,true);
+  await page.getByRole('button',{name:'Start 60-second capture'}).click();await page.getByText('Capture started.',{exact:true}).waitFor();await page.getByRole('button',{name:'Load server replies'}).click();await page.locator('#event-id').selectOption('2');await page.locator('#sender').fill('TestPlayer');await page.locator('#amount').fill('1');await page.locator('#confirm-receipt').check();await page.getByRole('button',{name:'Save incoming receipt format'}).click();await page.getByText('Receipt format saved.',{exact:true}).waitFor();
+  assert.deepEqual(receiptRequest,{captureId:'fixture-capture',eventId:2,ign:'TestPlayer',amountText:'1',confirmation:'USE CAPTURED INCOMING RECEIPT'});
+  if(process.env.AUTOSELL_SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.AUTOSELL_SCREENSHOT_DIR,'intake-setup-desktop.png'),fullPage:true});
+  await page.setViewportSize({width:375,height:812});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);assert.deepEqual(errors,[]);
+  if(process.env.AUTOSELL_SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.AUTOSELL_SCREENSHOT_DIR,'intake-setup-mobile.png'),fullPage:true});
+});

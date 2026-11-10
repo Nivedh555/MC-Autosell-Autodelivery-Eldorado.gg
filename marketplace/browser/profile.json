@@ -1,0 +1,22 @@
+{
+  "verified": false,
+  "synthetic": false,
+  "source": null,
+  "reviewedAt": null,
+  "permissionConfirmed": false,
+  "origin": "https://www.eldorado.gg",
+  "accountIdentity": null,
+  "contract": {
+    "fields": {},
+    "units": {},
+    "statuses": {},
+    "listingRules": {}
+  },
+  "pacing": {
+    "actionMs": 750,
+    "characterMs": 60,
+    "timeoutMs": 15000
+  },
+  "operations": {},
+  "note": "Shared seller workflow metadata. Connect and verify the client seller account; browser access alone does not establish payment or delivery readiness."
+}

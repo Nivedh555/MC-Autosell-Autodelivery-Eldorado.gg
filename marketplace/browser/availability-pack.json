@@ -1,0 +1,17 @@
+{
+  "verified": true,
+  "source": "Actual owner Currency Offers DOM on 2026-10-04; docs/verification/offer-availability-observed.json",
+  "paused": {
+    "status": "Paused",
+    "button": "Resume"
+  },
+  "active": {
+    "status": "Active",
+    "button": "Pause"
+  },
+  "nonExecutableStatuses": [
+    "Canceled"
+  ],
+  "closed": {"status":"Closed","source":"docs/verification/offer-closed-observed.html"},
+  "note": "Only Currency Offers availability controls were observed before and after the owner manually resumed on 2026-10-04. This does not verify funded order fields, chat, payment replies or mark-delivered. Site permission/rate limits remain owner responsibilities."
+}

@@ -1,0 +1,15 @@
+{
+  "verified": false,
+  "source": null,
+  "reviewedAt": null,
+  "baseUrl": null,
+  "auth": null,
+  "operations": {},
+  "fields": {},
+  "statuses": {},
+  "units": null,
+  "rateLimit": null,
+  "pagination": null,
+  "errorModel": null,
+  "chat": { "supported": false, "mode": "manual", "source": "https://support.eldorado.gg/en/articles/16127288-using-the-eldorado-seller-api" }
+}

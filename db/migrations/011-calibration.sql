@@ -1,0 +1,2 @@
+CREATE TABLE IF NOT EXISTS calibration_runs (id TEXT PRIMARY KEY, account_id TEXT NOT NULL, started_ms INTEGER NOT NULL, ended_ms INTEGER, state TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS calibration_events (id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT NOT NULL REFERENCES calibration_runs(id), kind TEXT NOT NULL, data TEXT NOT NULL, wall_ms INTEGER NOT NULL, monotonic_ns TEXT NOT NULL);

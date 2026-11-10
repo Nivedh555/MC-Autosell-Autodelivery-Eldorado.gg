@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Discord Intake Setup · LootHub Autosell</title><link rel="stylesheet" href="/assets/intake-setup.css"><script defer src="/assets/gsap.min.js"></script><script defer src="/assets/intake-setup.js"></script></head>
+<body>
+<header><a href="/">← Dashboard</a><span>LootHub Autosell</span></header>
+<main>
+  <div class="intro"><p class="eyebrow">DISCORD BUYER ACCOUNT</p><h1>Set up money & spawner intake</h1><p>Your Buyer account receives stock from Discord members. This setup does not require Eldorado.</p></div>
+  <p id="feedback" role="status" aria-live="polite"></p>
+  <section id="login-card" hidden><h2>Owner sign-in</h2><form id="login"><label for="password">Dashboard password</label><input id="password" type="password" autocomplete="current-password" required><button>Sign in</button></form></section>
+  <div id="setup" hidden>
+    <section><div class="section-heading"><div><p class="eyebrow">READINESS</p><h2>Your intake status</h2></div><button id="refresh" class="secondary" type="button">Refresh</button></div><ul id="checks"></ul><p class="hint">Only configure this Microsoft login once, under Buyer. Leave Seller empty when using a single account. Log in from Controls & Console first.</p></section>
+    <section><p class="eyebrow">01 / PAYOUTS</p><h2>Set automatic seller payments</h2><p>Choose who may receive LTC and how much the bot may pay. Your wallet remains subject to these limits and its available confirmed funds.</p>
+      <form id="policy"><label for="address-mode">Permitted recipients</label><select id="address-mode"><option value="linked-seller">Discord members’ saved Litecoin addresses</option><option value="allowlist">Only addresses I list below</option></select>
+        <label for="addresses">Explicit address allow-list <span class="hint">One address per line; optional for linked sellers.</span></label><textarea id="addresses" rows="2" spellcheck="false"></textarea>
+        <div class="columns"><div><label for="per-tx">Maximum USD per sale</label><input id="per-tx" type="number" min="0.000001" step="0.000001" placeholder="Enter your limit" required></div><div><label for="per-day">Maximum USD per UTC day</label><input id="per-day" type="number" min="0.000001" step="0.000001" placeholder="Enter your daily limit" required></div></div>
+        <label class="check"><input id="payout-enabled" type="checkbox">Enable automatic seller payouts</label>
+        <label class="check"><input id="send-enabled" type="checkbox">Enable Send LTC from this wallet</label>
+        <button>Save payout settings</button>
+      </form>
+    </section>
+    <section><p class="eyebrow">02 / MONEY DETECTION</p><h2>Capture the server’s incoming receipt</h2><p>Pause intake, start a capture, and have another player send a small known test amount to your Buyer account. The bot only records replies here; it does not send coins or LTC.</p>
+      <div class="actions"><button id="pause" class="secondary" type="button">Pause intake for setup</button><button id="resume" class="secondary" type="button">Resume intake</button></div>
+      <form id="capture"><label for="account">Buyer account</label><select id="account" required></select><button>Start 60-second capture</button></form>
+      <p id="capture-info" class="hint"></p>
+      <form id="receipt"><label for="capture-id">Recorded capture</label><select id="capture-id"></select><button id="load-capture" type="button" class="secondary">Load server replies</button>
+        <label for="event-id">Incoming payment receipt</label><select id="event-id" required><option value="">Capture a receipt first</option></select><pre id="raw-receipt">Select the actual incoming payment line, not the /bal reply.</pre>
+        <div class="columns"><div><label for="sender">Test sender’s Minecraft IGN</label><input id="sender" autocomplete="off" pattern="\.?[A-Za-z0-9_]{3,16}" required></div><div><label for="amount">Amount exactly as the receipt displays it</label><input id="amount" placeholder="For example: 1 or 1M" autocomplete="off" required></div></div>
+        <label class="check"><input id="confirm-receipt" type="checkbox" required>I selected the real server receipt for the test transfer.</label><button>Save incoming receipt format</button>
+      </form>
+      <p class="hint">Every real sale checks the sender, the requested amount, and an exact before/after balance increase. Rounded balances such as “1.2M” cannot establish an exact delta; the bot will stop and explain this if the server does not provide a precise balance.</p>
+    </section>
+    <section><p class="eyebrow">03 / BEFORE ACCEPTING CUSTOMERS</p><h2>Finish with one small sale</h2><p>Resume intake and test Sell Money with a known amount. Wait for the bot’s explicit payment instruction before sending. A transfer made outside an armed sale is not paid automatically.</p><p>Spawner collection also needs your working home and Ender Chest. Money intake does not use home/storage to verify a receipt.</p><a class="button secondary" href="/">Return to dashboard</a></section>
+  </div>
+</main></body></html>
