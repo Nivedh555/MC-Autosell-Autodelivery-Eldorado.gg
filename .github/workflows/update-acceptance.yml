@@ -47,8 +47,17 @@ jobs:
           "ACCEPTANCE_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Install the older signed build into an isolated profile
         shell: pwsh
+        env:
+          AUTOSELL_PUBLISHER_NAME: ${{ vars.AUTOSELL_PUBLISHER_NAME }}
         run: |
           $setup = Get-ChildItem "$env:ACCEPTANCE_ROOT/from/Autosell-Setup-*-x64.exe" | Select-Object -First 1
+          $signature = Get-AuthenticodeSignature -LiteralPath $setup.FullName
+          if ($signature.Status -ne 'Valid') { throw 'The older acceptance installer is not validly signed' }
+          if (-not $signature.SignerCertificate.Subject.Contains($env:AUTOSELL_PUBLISHER_NAME)) { throw 'The older acceptance installer has the wrong publisher' }
+          $target = Get-ChildItem "$env:ACCEPTANCE_ROOT/to/Autosell-Setup-*-x64.exe" | Select-Object -First 1
+          $targetSignature = Get-AuthenticodeSignature -LiteralPath $target.FullName
+          if ($targetSignature.Status -ne 'Valid') { throw 'The target acceptance installer is not validly signed' }
+          if (-not $targetSignature.SignerCertificate.Subject.Contains($env:AUTOSELL_PUBLISHER_NAME)) { throw 'The target acceptance installer has the wrong publisher' }
           $install = Join-Path $env:ACCEPTANCE_ROOT 'program'
           $process = Start-Process -FilePath $setup.FullName -ArgumentList "/S /currentuser /D=$install" -WindowStyle Hidden -PassThru
           if (-not $process.WaitForExit(300000) -or $process.ExitCode -ne 0) { throw 'Older signed installer failed' }

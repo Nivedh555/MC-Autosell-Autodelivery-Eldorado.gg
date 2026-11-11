@@ -108,7 +108,12 @@ test("Discord Dashboard masks the token, saves settings, previews and posts a pa
 });
 
 test("Discord Dashboard surfaces permission errors, stale panels and audio preferences", async t => {
-  const { page, state } = await fixture(t);
+  const { page, state, calls } = await fixture(t);
+  const buying = page.locator("section").filter({ has: page.getByRole("heading", { name: "Buying controls", exact: true }) });
+  await buying.getByLabel("Spawner price (USD)", { exact: true }).fill("0.07");
+  await buying.getByRole("button", { name: "Save buying controls", exact: true }).click();
+  await page.getByText("Buying controls saved.", { exact: true }).first().waitFor();
+  assert.equal(calls.filter(call => call.path === "/v2/discord/buying").at(-1).body.pricePerSpawnerUsd, 0.07);
   state.postEnabled = false;
   await page.getByRole("button", { name: "Post panel to Discord", exact: true }).click();
   await page.getByText(/View Channel/).first().waitFor();

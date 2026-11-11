@@ -59,7 +59,10 @@ async function unlock(page) {
   if (!fs.existsSync(database)) throw Error('Workspace database was not created before update');
   const databaseBytes = fs.statSync(database).size;
   await page.getByRole('button', { name: 'Restart and install safely', exact: true }).click();
-  await application.process().exitCode;
+  const updateProcess = application.process();
+  const deadline = Date.now() + 10 * 60 * 1000;
+  while (updateProcess.exitCode === null && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 500));
+  if (updateProcess.exitCode === null) throw Error('Timed out waiting for the update installer to exit');
   application = null;
   // The updater may auto-launch the new build. Stop only that installed test
   // process, then launch it under Playwright with the same generated profile.

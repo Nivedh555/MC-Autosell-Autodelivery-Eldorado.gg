@@ -13,6 +13,7 @@
     "test": "node --test test/*.test.js",
     "test:runtime": "node scripts/test-runtime.js",
     "test:installed": "node scripts/test-installed.js",
+    "test:update": "node scripts/test-update-acceptance.js",
     "build": "npm run prepare:resources && electron-builder --config electron-builder.config.js --win nsis --x64 --publish never",
     "package": "electron-builder --config electron-builder.config.js --win nsis --x64 --publish never"
   },

@@ -21,7 +21,7 @@ const blockmapPath = filePath + '.blockmap';
 for (const file of [filePath, blockmapPath]) if (!fs.existsSync(file)) throw Error('Missing release artifact ' + path.basename(file));
 const notesPath = path.join(directory, 'release-notes.md');
 if (!fs.existsSync(notesPath)) throw Error('Signed release notes are missing');
-const releaseNotes = fs.readFileSync(notesPath, 'utf8').trim();
+const releaseNotes = fs.readFileSync(notesPath, 'utf8').replace(/^\uFEFF/, '').trim();
 if (!releaseNotes || releaseNotes.length > 100000) throw Error('Release notes must be non-empty and under 100,000 characters');
 const file = fs.readFileSync(filePath);
 const yamlName = channel === 'beta' ? 'beta.yml' : 'latest.yml';

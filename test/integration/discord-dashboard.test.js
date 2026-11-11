@@ -89,6 +89,22 @@ async function fixture(t, options = {}) {
   return { base, headers, auth, settings, store, fake, channel: fake.client };
 }
 
+test('Discord buying controls persist prices and both buying toggles', async t => {
+  const { base, auth, settings, store } = await fixture(t);
+  const saved = await fetch(base + '/v2/discord/buying', {
+    method: 'POST', headers: auth,
+    body: JSON.stringify({ pricePerSpawnerUsd: 0.07, ratePerMillion: 0.031, moneyEnabled: false, spawnerEnabled: true, paused: true }),
+  });
+  if (saved.status !== 200) assert.fail(await saved.text());
+  const data = await saved.json();
+  assert.equal(data.buying.pricePerSpawnerUsd, 0.07);
+  assert.equal(data.buying.moneyEnabled, false);
+  assert.equal(settings.values['pricing.spawner.priceUsd'], 0.07);
+  assert.equal(settings.values['pricing.money.ratePerMillion'], 0.031);
+  assert.equal(settings.values['pricing.money.enabled'], false);
+  assert.equal(store.state.paused, true);
+});
+
 test('Discord dashboard masks the saved token and saving a blank token keeps it', async t => {
   const { base, headers, auth, settings } = await fixture(t);
   const dashboard = await fetch(base + '/v2/discord/dashboard', { headers });
