@@ -9,7 +9,7 @@ function normalize(order,reference,offers,listing,policy){
   if(order.status!=='Pending delivery'||reference.status!=='Pending delivery'||!reference.controls.includes('Order delivered'))throw Error('This order is not awaiting seller delivery');
   const intents=reference.messages.filter(message=>message.peer&&message.kind!=='attachment').map(message=>require('../chat-rules').classify(message.text).intent);
   if(intents.some(intent=>['cancel','escalation','missing'].includes(intent)))throw Error('Buyer requested cancellation or raised a delivery dispute; review before sending money');
-  const flow=require('../order-chat-flow'),recipient=flow.selection(reference.messages,{...policy.chat,amount:flow.quantityForOrder(order,reference),orderId:order.id});
+  const flow=require('../order-chat-flow'),recipient=flow.selection(reference.messages,{...policy.chat,amount:flow.quantityForOrder(order,reference)});
   if(!recipient.latest||recipient.requiresClarification)return null;
   if(!recipient.confirmed)return null;
   const amount=coins(reference.quantityDisplay);

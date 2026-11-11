@@ -1,6 +1,6 @@
 {
   "name": "autosell-v3",
-  "version": "3.0.1",
+  "version": "3.0.0",
   "description": "Autosell V3 for Linux: Eldorado delivery, Minecraft 26.3 Fabric bridge and Discord LTC buying.",
   "main": "index.js",
   "type": "commonjs",

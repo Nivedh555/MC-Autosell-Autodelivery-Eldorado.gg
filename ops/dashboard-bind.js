@@ -1,7 +1,6 @@
 'use strict';
 
 async function resolveBind(settings) {
-  if(process.env.AUTOSELL_DESKTOP==='1')return {host:'127.0.0.1',port:0,remoteEnabled:false};
   const port = settings.getSync('security.api.port') ?? 4201;
   let host = settings.getSync('security.api.host') || '127.0.0.1';
   const remoteEnabled = settings.getSync('security.api.remoteEnabled') === true;

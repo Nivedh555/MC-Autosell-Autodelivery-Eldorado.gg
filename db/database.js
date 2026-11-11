@@ -21,7 +21,7 @@ class Database {
       fs.mkdirSync(dbDir, { recursive: true });
     }
     const instance = new Database(dbPath);
-    try {await instance.migrate();}catch(error){await instance.close();throw error;}
+    await instance.migrate();
     return instance;
   }
 
@@ -43,9 +43,6 @@ class Database {
     const files = fs.readdirSync(migrationsDir)
       .filter(f => f.endsWith('.sql'))
       .sort();
-    const supported=Math.max(0,...files.map(file=>Number(file.match(/^(\d+)-/)?.[1]||0)));
-    const current=this.db.prepare('SELECT MAX(version) AS version FROM schema_version').get().version||0;
-    if(current>supported)throw Error('This database was upgraded by a newer Autosell version. Install that version or newer; do not roll back payment journals.');
 
     const applied = [];
     for (const file of files) {

@@ -9,7 +9,7 @@ const setting = (key, fallback) => services.settings?.getSync?.(key) ?? fallback
 function originGuard(req, res, next) {
   const origin = req.headers.origin;
   const allow = setting('security.api.allowedOrigins', []);
-  if (origin && origin!==services.desktopOrigin && (!Array.isArray(allow) || !allow.includes(origin))) return res.status(403).json({ success: false, error: 'Origin not allowed' });
+  if (origin && (!Array.isArray(allow) || !allow.includes(origin))) return res.status(403).json({ success: false, error: 'Origin not allowed' });
   if (origin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');

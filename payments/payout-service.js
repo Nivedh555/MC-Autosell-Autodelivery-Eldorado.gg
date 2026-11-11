@@ -6,8 +6,7 @@ class PayoutService {
   payInstant(discordId, input) {
     if (this.pending >= 100) return Promise.resolve({ok:false,reason:'Payout processing is busy; operator review required'});
     this.pending++;
-    const task = this.chain.then(() => require('../sell/intake-admission').runSale(discordId,input.saleId,
-      () => require('../ops/maintenance').run(services,'payout',()=>this._payInstant(discordId, input))));
+    const task = this.chain.then(() => this._payInstant(discordId, input));
     this.chain = task.catch(() => {}).finally(() => { this.pending--; });
     return task;
   }

@@ -33,7 +33,7 @@ class EldoradoHybridAdapter extends EldoradoOfficialAdapter {
     const intents=reference.messages.filter(row=>row.peer&&row.kind!=='attachment').map(row=>require('../chat-rules').classify(row.text).intent);
     if(intents.some(intent=>['cancel','escalation','missing'].includes(intent)))throw Error('Buyer requested cancellation or reported a delivery problem.');
     const chat=await s.settings.get('eldorado.chat.local')||{};
-    const flow=require('../order-chat-flow'),recipient=flow.ownerRecipient(s,order,reference)||flow.selection(reference.messages,{...chat,amount:flow.quantityForOrder(order,reference),orderId:order.id,services:s});
+    const flow=require('../order-chat-flow'),recipient=flow.ownerRecipient(s,order,reference)||flow.selection(reference.messages,{...chat,amount:flow.quantityForOrder(order,reference)});
     order.quantityDisplay=reference.quantityDisplay;
     new(require('../order-observations').OrderObservations)(s.db).recordReference(order,reference);
     if(!recipient.latest||recipient.requiresClarification){new(require('../order-observations').OrderObservations)(s.db).annotate(order.id,{routingReason:recipient.requiresClarification?'Buyer chat contains different Minecraft names. Ask the buyer to confirm one IGN.':'Waiting for the buyer to send a Minecraft IGN in this order chat.'});return null;}
@@ -92,9 +92,6 @@ class EldoradoHybridAdapter extends EldoradoOfficialAdapter {
       const receipt={orderId:order.id,status:fresh.apiStatus,capturedAt:new Date().toISOString(),source:'Seller API cancellation status readback'};
       db.prepare("UPDATE seller_api_actions SET state='CONFIRMED',result=?,reason=NULL,updated_ms=? WHERE id=?").run(JSON.stringify(receipt),Date.now(),key);
       new(require('../order-observations').OrderObservations)(s.db).observe(fresh);
-      const engine=require('../customer-message-config').forServices(s);
-      if(engine){const context={id:order.id,hybridWorkflow:true,browserOrder:{quantityDisplay:order.quantityDisplay||reference.quantityDisplay},browserBinding:{sellerHref:listing.observedSellerHref}};
-        engine.schedule('buyer_canceled',fresh,'customer-notification:buyer_canceled:'+order.id,{order:context});}
       db.prepare('UPDATE observed_order_holds SET status=?,resolved_ms=? WHERE order_id=?').run(fresh.apiStatus,Date.now(),order.id);return receipt;
     };
     let fresh=await read();

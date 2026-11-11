@@ -65,7 +65,7 @@ class BrowserFulfillment {
     if(!config.autoSend||config.openingEnabled===false)return;
     const agent=new(require('../ai-chat-agent'))({services:s,db:s.db,repo:s.deliveryService.repo});
     const opening=await agent.sendOpeningMessage(order.id);
-    if(opening.skippedKnownRecipient||opening.skippedConfigured)return;
+    if(opening.skippedKnownRecipient)return;
     s.chatScheduler.recoverObservedDrafts?.(order.id);
     const pending=s.db.raw().prepare("SELECT * FROM buyer_messages WHERE order_id=? AND direction='out' AND intent='opening' ORDER BY created_ms LIMIT 1").get(order.id);
     if(!pending)throw Error('The opening reply was not prepared; no payment was authorized');
@@ -89,7 +89,7 @@ class BrowserFulfillment {
     if(!evidence.signed)throw Error('A signed captured delivery record is required');
     const pinned=crypto.createPublicKey(await s.vault.retrieve('evidence.signing.privateKey'));
     const base=path.resolve(s.evidenceRoot||path.join(process.cwd(),'data','proofs'),evidence.artifactId);
-    if(!/^[a-f0-9-]{36}$/.test(evidence.artifactId)||require('../../ops/runtime-paths').resolveStored(evidence.directory)!==base)throw Error('Unexpected proof directory');
+    if(!/^[a-f0-9-]{36}$/.test(evidence.artifactId)||path.resolve(evidence.directory)!==base)throw Error('Unexpected proof directory');
     const {receiptSpec,cropReceipt,forEvidenceReview}=require('../receipt-crop');
     const fs=require('node:fs');
     try {
@@ -106,15 +106,7 @@ class BrowserFulfillment {
           throw Error('Signed payment evidence belongs to a different order or recipient');
         const verifiedCrop=cropReceipt(fs.readFileSync(path.join(base,evidence.screenshotName)),
           record.screenshot?.[0]?.receipt,receiptSpec(order,s.deliveryService.repo.chunks(order.id)));
-        let expected=verifiedCrop;
-        if(record.receiptPresentation){
-          const sourceName='receipt-source-'+evidence.artifactId+'.png';
-          if(!manifest.artifacts[sourceName]||!verifiedCrop.equals(fs.readFileSync(path.join(base,sourceName))))throw Error('Archived receipt differs from the verified framebuffer crop');
-          const preview=require('../receipt-crop').presentReceipt(verifiedCrop);
-          if(!require('node:util').isDeepStrictEqual(preview.presentation,record.receiptPresentation))throw Error('Recorded receipt enlargement differs from the verified presentation');
-          expected=preview.bytes;
-        }
-        if (!expected.equals(fs.readFileSync(path.join(base,evidence.chatImage))))
+        if (!verifiedCrop.equals(fs.readFileSync(path.join(base,evidence.chatImage))))
           throw Error('Receipt differs from the verified framebuffer crop');
       }
     } catch (error) { throw forEvidenceReview(error); }

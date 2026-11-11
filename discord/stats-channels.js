@@ -29,7 +29,7 @@ const { formatDonut } = require('../sell/money-format');
 const templates = require('./templates/stats-text');
 const engine = require('./templates/engine');
 
-const STORE_FILE = require('../ops/runtime-paths').data('stats-channels.json');
+const STORE_FILE = path.resolve(__dirname, '..', 'data', 'stats-channels.json');
 let CATEGORY_NAME = '📊 SELL STATS';                                                                           
 
                                                                                

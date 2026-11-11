@@ -9,13 +9,8 @@ async function readDashboardSellerIdentity(page,timeoutMs){
   const dashboard='https://www.eldorado.gg/dashboard/orders/sold';
   const isDashboard=()=>{try{const url=new URL(page.url());return url.origin==='https://www.eldorado.gg'&&url.pathname.startsWith('/dashboard/');}catch{return false;}};
   try{
-    // Leave an in-progress login or human verification on its current page.
-    // Repeated connection checks must not restart the authentication redirect.
-    const current=new URL(page.url());
-    const title=typeof page.title==='function' ? await page.title() : '';
-    if(current.hostname==='login.eldorado.gg' || /just a moment|performing security verification|attention required.*cloudflare/i.test(title)) {
-      throw Error('Finish the sign-in or security verification in your seller browser, then click Check connection. This page has been left open.');
-    }
+                                                                         
+                                                                          
     if(!isDashboard())await page.goto(dashboard,{waitUntil:'domcontentloaded',timeout:timeoutMs});
     if(!isDashboard())throw Error('Sign in to the selected Eldorado seller Chrome profile, then check its connection again.');
     const identity=page.locator('eld-dashboard-sidenav-user a[href]');
@@ -366,19 +361,15 @@ class PlaywrightSession {
       this.record('inspectOrders','CAPTURED_READ_ONLY');return result;
     }finally{this.busy=false;this.active=null;}
   }
-  async orderChatContext(order,{reuseIdentity=false,completionNotification=false,cancellationNotification=false,ownerReview=false}={}){
+  async orderChatContext(order,{reuseIdentity=false,completionNotification=false,ownerReview=false}={}){
     const repo=this.services.deliveryService?.repo;
     const eligible = current => {
       repo?.applyMarketplaceStatus(order.id,current.status);
       const closed = repo?.closedStatus(order.id)||require('../order-status').closedStatus(current.status);
       if(ownerReview)return;
-      if(cancellationNotification&&!repo?.chunks(order.id).length&&require('../order-status').closure(closed)==='canceled'&&require('../order-status').closure(current.status)==='canceled'){
-        const row=repo?.get(order.id);
-        if(row?.state==='CANCELLED'||(!row&&this.services.db.raw().prepare("SELECT 1 FROM seller_api_actions WHERE id=? AND state='CONFIRMED'").get('cancelOrder:'+order.id)))return;
-      }
       if(completionNotification && repo?.get(order.id)?.state==='DELIVERED' &&
         require('../order-status').closure(closed)==='completed' && require('../order-status').closure(current.status)==='completed')return;
-      if(closed||current.status!=='Pending delivery'||completionNotification||cancellationNotification||repo?.get(order.id)?.state==='DELIVERED')throw Error('Marketplace order '+order.id+' is '+(closed||current.status)+'; its chat operation stopped.');
+      if(closed||current.status!=='Pending delivery'||completionNotification||repo?.get(order.id)?.state==='DELIVERED')throw Error('Marketplace order '+order.id+' is '+(closed||current.status)+'; its chat operation stopped.');
     };
     if(!order.hybridApiOrder){
       const history=await require('./observed-orders').readOrders(this.page,this.config.timeoutMs);

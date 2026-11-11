@@ -137,13 +137,13 @@ test('opening the seller browser checks once and gives a sign-in recovery path',
 
 test('an older running server gives a concrete restart instruction without claiming automation is on',async t=>{
   const {page,panel,calls}=await fixture(t,{missing:true,opened:false,verified:false});
-  await panel.getByRole('alert').getByText('Restart Autosell to load startup checks, then refresh this page.',{exact:true}).waitFor();
+  await panel.getByRole('alert').getByText('Restart Start-Windows.cmd to load startup checks.',{exact:true}).waitFor();
   await page.getByRole('link',{name:'STARTUP UNCHECKED',exact:true}).waitFor();
   assert.equal(await panel.getByRole('button',{name:'Enable automation',exact:true}).count(),0);
   await panel.getByRole('button',{name:'Check startup',exact:true}).click();
   await panel.getByRole('alert').waitFor();
   await page.getByRole('button',{name:'Open seller browser',exact:true}).click();
-  await page.getByText('Seller browser opened. Sign in to Eldorado in that browser, then click Check startup. Restart Autosell to load startup checks, then refresh this page.',{exact:true}).first().waitFor();
+  await page.getByText('Seller browser opened. Sign in to Eldorado in that browser, then click Check startup. Restart Start-Windows.cmd to load startup checks.',{exact:true}).first().waitFor();
   assert.equal(calls.filter(call=>call.path==='/marketplace/startup/check').length,2);
   assert.equal(calls.filter(call=>call.path==='/marketplace/controls').length,0);
 });

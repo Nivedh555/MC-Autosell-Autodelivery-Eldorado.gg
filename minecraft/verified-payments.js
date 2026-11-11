@@ -147,7 +147,6 @@ class VerifiedPayments {
       bot.on('messagestr', listener); bot.once('end', disconnected);
       try {
         beforeSend?.();
-        if(/^\/pay /.test(command))require('../services').maintenance?.assertCanDispatch();
         this.capture('command', { command, wallMs: Date.now(), monotonicNs: process.hrtime.bigint().toString() });
         sent = true;
         require('./command-pacer').markDispatched(bot);

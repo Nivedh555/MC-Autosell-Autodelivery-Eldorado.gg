@@ -6,9 +6,6 @@ const { VerifiedPayments, splitAmount, integer, validIgn } = require('../minecra
 class TransferExecutor {
   constructor(options = {}) { this.options = options; this.owner = crypto.randomUUID(); }
   async executeTransfer(from, to, amount, transferId) {
-    return require('../ops/maintenance').run(services,'transfer',()=>this._executeTransfer(from,to,amount,transferId));
-  }
-  async _executeTransfer(from, to, amount, transferId) {
     if (!transferId) throw new Error('Stable transfer ID required; random retry IDs are prohibited');
     const repo = new DeliveryRepository(this.options.db || services.db);
     const id = 'transfer:' + transferId;

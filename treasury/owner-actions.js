@@ -23,9 +23,6 @@ function payCommand(command) {
   return amount > 0n && amount <= BigInt(Number.MAX_SAFE_INTEGER) ? { recipient: m[1], amount: String(amount) } : null;
 }
 async function once(id, intent, fn, ctx = services) {
-  return require('../ops/maintenance').run(ctx,'owner-action',()=>onceAdmitted(id,intent,fn,ctx));
-}
-async function onceAdmitted(id, intent, fn, ctx) {
   requestId(id);
   const db = ctx.db.raw(), fingerprint = crypto.createHash('sha256').update(JSON.stringify(intent)).digest('hex');
   const inserted = db.prepare("INSERT OR IGNORE INTO owner_actions VALUES(?,?,'RUNNING',NULL,?,?)").run(id, fingerprint, Date.now(), Date.now()).changes;

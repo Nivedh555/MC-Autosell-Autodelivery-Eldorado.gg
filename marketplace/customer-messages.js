@@ -19,28 +19,17 @@ function render(kind,{buyer,amount,ign,url}={}){
     return String(fields[key]).replace(/[\r\n\t]+/g,' ').slice(0,200);
   });
 }
-async function sendStage(services,order,stage,authorize){
-  const id='customer-'+stage+':'+order.id;
-  const engine=require('./customer-message-config').forServices(services);
-  const beforeSend=async reference=>{
+function sendStage(services,order,stage,authorize){
+  const text=render(stage,{amount:order.amount,ign:order.buyerIgn});
+  return services.browserBridge.sendOrderMessageObserved(order.browserOrder,text,'customer-'+stage+':'+order.id,order.browserBinding.sellerHref,async reference=>{
     await authorize();
     const config=await services.settings.get('eldorado.chat.local');
     if(!config.autoSend)throw Error('Automatic buyer chat is paused');
     if(stage==='sending'){
-      const flow=require('./order-chat-flow'),selected=flow.ownerRecipient(services,order,reference)||flow.selection(reference.messages,{...config,amount:order.amount,confirmIgn:true,orderId:order.id,services});
+      const flow=require('./order-chat-flow'),selected=flow.ownerRecipient(services,order,reference)||flow.selection(reference.messages,{...config,amount:order.amount,confirmIgn:true});
       if(!selected.confirmed||selected.latest?.ign!==order.buyerIgn)throw Error('Buyer changed their recipient or confirmation before payment');
     }
-  };
-  if(stage==='sending'&&engine){
-    const confirmed=engine.schedule('buyer_confirmed',order,'customer-buyer-confirmed:'+order.id);
-    if(confirmed.enabled){await services.browserBridge.sendOrderMessageObserved(order.browserOrder,confirmed.text,confirmed.id,order.browserBinding.sellerHref,beforeSend);engine.finish(confirmed.id);}
-  }
-  const scheduled=engine?.schedule({sending:'payment_started',proof:'proof_ready'}[stage],order,id);
-  // Old requests retain their exact text for reconciliation after upgrading.
-  const old=services.db?.raw().prepare("SELECT request FROM browser_actions WHERE operation='sendMessageObserved' AND resource_id=? AND json_extract(request,'$.messageId')=? LIMIT 1").get(order.id,id);
-  const text=old?JSON.parse(old.request).text:scheduled?scheduled.text:render(stage,{amount:order.amount,ign:order.buyerIgn});
-  if(scheduled&&!scheduled.enabled&&!old)return Promise.resolve({skipped:true});
-  const result=await services.browserBridge.sendOrderMessageObserved(order.browserOrder,text,id,order.browserBinding.sellerHref,beforeSend);engine?.finish(id);return result;
+  });
 }
 function sendNameGuide(services,order,sellerHref){
   return services.browserBridge.uploadOrderEvidenceObserved(order,path.join(guideDirectory,'which-name.jpg'),sellerHref,async()=>{

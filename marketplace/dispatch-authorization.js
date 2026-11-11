@@ -11,7 +11,7 @@ async function validateRecipient(services,order,account){
   }
   if(reference.id!==order.id||reference.buyerName!==order.buyerMarketplaceId||reference.status!=='Pending delivery'||require('./browser/observed-offers').coins(reference.quantityDisplay)!==String(order.amount))throw Error('Order identity, amount or funded status changed before payment dispatch');
   const config=await services.settings.get('eldorado.chat.local');
-  const selected=flow.ownerRecipient(services,order,reference)||flow.selection(reference.messages,{...config,amount:order.amount,confirmIgn:true,orderId:order.id,services});
+  const selected=flow.ownerRecipient(services,order,reference)||flow.selection(reference.messages,{...config,amount:order.amount,confirmIgn:true});
   if(!selected.confirmed||selected.requiresClarification||selected.cancelled||selected.latest?.ign!==order.buyerIgn)throw Error('Buyer changed their recipient or confirmation before payment dispatch');
   await services.browserFulfillment.authorize(order,account);
   // Browser-only mode just read a freshly loaded seller history and order room.

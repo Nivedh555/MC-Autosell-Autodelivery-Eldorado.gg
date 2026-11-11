@@ -14,14 +14,12 @@ const walletRouter = require('./routes/wallet');
 const sessionsRouter = require('./routes/sessions');
 const logsRouter = require('./routes/logs');
 const sseRouter = require('./routes/sse');
-const discordRouter = require('./routes/discord');
 
 function createServer(services) {
   const app = express();
   
   app.disable('x-powered-by');
   app.set('trust proxy', false);
-  app.use(require('../ops/desktop-control').tokenGuard());
   const boundary = require('./security-boundary');
   const { verifyAuth, csrfProtection } = require('./middleware');
   app.use(boundary.originGuard);
@@ -50,7 +48,6 @@ function createServer(services) {
   v2.use('/sessions', requireAuth, sessionsRouter);
   v2.use('/logs', requireAuth, logsRouter);
   v2.use('/events', requireAuth, sseRouter);
-  v2.use('/discord', requireAuth, discordRouter);
 
   app.use('/api/v2', v2);
   app.use('/api/v3', require('../v3/routes'));

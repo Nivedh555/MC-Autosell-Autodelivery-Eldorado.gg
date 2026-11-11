@@ -109,14 +109,12 @@ class SellManager extends EventEmitter {
     this._draining = true;
     try {
       while (this.queue.length) {
-        if(services.maintenance?.blocked())break;
         if (this.paused) break;                                               
         if (admission.busy) break;
         const id = this.queue.shift();
         const order = this.store.getOrder(id);
         if (!order || order.status !== 'queued') continue;
         const ticket = admission.acquire(order.sellerDiscordId);
-        ticket.bindSale(order.id);
         this.activeId = id;
         let lease, keepAlive;
         try {
@@ -125,7 +123,7 @@ class SellManager extends EventEmitter {
           await lease.ready();
           keepAlive = setInterval(() => lease.extend(60000), 30000);
           keepAlive.unref?.();
-          await ticket.run(() => this._process(order));
+          await this._process(order);
         } catch (err) {
           order.status = 'needs_operator'; order.reason = 'Interrupted: ' + err.message;
           this.store.saveOrder(order);

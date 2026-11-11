@@ -87,9 +87,7 @@ test("the signed delivery pack contains the original order-specific PNG and reje
       verifyPack(proof.directory, publicKey).artifacts[proof.screenshotName],
       source.sha256,
     );
-    const original=PNG.sync.read(bytes),crop=PNG.sync.read(fs.readFileSync(path.join(proof.directory,'receipt-source-'+proof.artifactId+'.png')));
-    const preview=PNG.sync.read(fs.readFileSync(path.join(proof.directory,proof.chatImage)));
-    assert.equal(preview.width,480);assert.equal(preview.height,40);
+    const original=PNG.sync.read(bytes),crop=PNG.sync.read(fs.readFileSync(path.join(proof.directory,proof.chatImage)));
     assert.equal(crop.width,120);
     assert.equal(crop.height,10);
     for(let row=0;row<crop.height;row++)assert.deepEqual(crop.data.subarray(row*crop.width*4,(row+1)*crop.width*4),

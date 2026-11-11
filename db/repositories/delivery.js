@@ -67,7 +67,6 @@ class DeliveryRepository {
   event(id, kind, data = {}) {
     this.db.prepare('INSERT INTO delivery_events(order_id,kind,data,wall_ms,monotonic_ns) VALUES(?,?,?,?,?)')
       .run(id, kind, JSON.stringify(data), Date.now(), process.hrtime.bigint().toString());
-    require('../../marketplace/customer-message-config').recordDeliveryEvent(this.db,id,kind,data);
   }
   observe(order, mode) {
     if (typeof order.id !== 'string' || !order.id || order.id.length > 200) throw new Error('Invalid order identifier');

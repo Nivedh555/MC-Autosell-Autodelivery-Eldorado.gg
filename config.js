@@ -7,7 +7,7 @@
                                                                               
    
 
-require('dotenv').config({ path: require('./ops/runtime-paths').envFile });
+require('dotenv').config({ path: require('node:path').join(__dirname, '.env') });
 
 const { loadDefaults } = require('./settings/registry');
 

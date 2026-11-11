@@ -1,21 +1,7 @@
 node_modules/
-.env*
-!.env.example
+.env
 data/
 auth-cache/
-/release/*
-!/release/SHA256SUMS
-!/release/autosell-bridge-3.0.0.jar
-!/release/fabric-api-0.165.2+26.3.jar
-client-mod/.gradle/
-client-mod/build/
-*.db
-*.db-shm
-*.db-wal
-*.sqlite*
-*.enc
-*.pfx
-*.pem
-autosell-bridge.json
+release/
 *.log
 

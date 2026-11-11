@@ -1,8 +1,7 @@
 'use strict';
-const runtimePaths = require('./ops/runtime-paths');
-runtimePaths.initialize();
+process.chdir(__dirname);
 process.env.AUTOSELL_GAME_TRANSPORT = 'fabric';
-require('dotenv').config({ path: runtimePaths.envFile });
+require('dotenv').config({ path: require('node:path').join(__dirname, '.env') });
 const ConsoleLogger = require('./services/console-logger');
 ConsoleLogger.install();
 
@@ -12,11 +11,6 @@ ConsoleLogger.install();
 
 const config = require('./config');
 const services = require('./services');
-let desktopDetached=false;
-if(process.env.AUTOSELL_DESKTOP==='1')process.on('disconnect',()=>{
-  desktopDetached=true;
-  services.maintenance?.begin(services.maintenance.row().target_version||null);
-});
 
 require('./minecraft/protocol-patch').apply();
 
@@ -30,7 +24,7 @@ const { LtcWallet } = require('./wallet/ltc-wallet');
 const discordClient = require('./discord/client');
 
 async function main() {
-  const releaseInstance = require('./ops/instance-lock').acquire(runtimePaths.data());
+  const releaseInstance = require('./ops/instance-lock').acquire(require('node:path').join(__dirname, 'data'));
   process.once('exit', releaseInstance);
   services.buildStatus=new(require('./ops/build-status').BuildStatus)(__dirname);
   const path = require('path');
@@ -59,18 +53,16 @@ async function main() {
 `);
 
   ConsoleLogger.bootStep(1, 7, 'Connecting database & trade records...');
-  const dbPath = runtimePaths.data('autosell.db');
+  const dbPath = path.join(__dirname, 'data/autosell.db');
   const db = await Database.open(dbPath);
   require('./marketplace/browser/message-outbox').recover(db.raw());
   services.db = db;
-  services.maintenance = new (require('./ops/maintenance').Maintenance)(db.raw());
-  if((process.env.AUTOSELL_DESKTOP_RECOVERY==='1'||desktopDetached)&&!services.maintenance.active)services.maintenance.begin(null);
   ConsoleLogger.bootSuccess('Local database ready');
   ConsoleLogger.line('INFO','BUILD','Backend build '+services.buildStatus.buildId,{PID:process.pid});
   console.log('');
 
   ConsoleLogger.bootStep(2, 7, 'Loading configuration & security vault...');
-  const vaultPath = runtimePaths.data('vault.enc');
+  const vaultPath = path.join(__dirname, 'data/vault.enc');
   const passphrase = process.env.VAULT_PASSPHRASE;
   const settings = new SettingsRegistry(dbPath, vaultPath, passphrase);
   await settings.init();
@@ -80,7 +72,7 @@ async function main() {
   services.vault = settings.vault;
   await config.bindRegistry(settings);
   await require('./minecraft/donutsmp-profile').configure(settings);
-  services.apiKey = await require('./ops/api-key-policy').selectKey(settings, process.env, runtimePaths.data('revoked-api-keys.json'));
+  services.apiKey = await require('./ops/api-key-policy').selectKey(settings, process.env, path.join(__dirname,'data/revoked-api-keys.json'));
   services.discordClient = discordClient;
   services.logger = new DiscordLogger();
   const { OperationsMonitor } = require('./ops/monitor');
@@ -210,16 +202,14 @@ async function main() {
 
   ConsoleLogger.bootStep(6, 7, 'Starting Web Dashboard server...');
   const dashboardBind = require('./ops/dashboard-bind');
-  let { port, host } = await dashboardBind.resolveBind(settings);
+  const { port, host } = await dashboardBind.resolveBind(settings);
   if (!['127.0.0.1', '::1'].includes(host)) {
     if (settings.getSync('security.api.remoteEnabled') !== true) throw new Error('Remote API bind requires explicit opt-in');
     ConsoleLogger.bootWarn('Remote API access enabled: use TLS and an explicit origin allow-list');
   }
 
   const app = apiServer.createServer(services);
-  const dashboardServer = await dashboardBind.listen(app, { port, host });
-  port=dashboardServer.address().port;
-  if(process.env.AUTOSELL_DESKTOP==='1')services.desktopOrigin='http://127.0.0.1:'+port;
+  await dashboardBind.listen(app, { port, host });
   ConsoleLogger.line('READY', 'DASHBOARD', 'Dashboard is listening', { Address: `http://${host === '::1' ? '[::1]' : host}:${port}` });
   console.log('');
 
@@ -289,13 +279,6 @@ async function main() {
     }
   };
   services.shutdown = shutdown;
-  if(process.env.AUTOSELL_DESKTOP==='1'){
-    require('./ops/desktop-control').attach(services);
-    const orphanCheck=setInterval(()=>{
-      if(desktopDetached&&services.maintenance.status().safe)shutdown('DESKTOP_DISCONNECTED');
-    },1000);orphanCheck.unref();
-    if(process.connected)process.send({type:'ready',port,version:require('./package.json').version,buildId:services.buildStatus.buildId,maintenance:services.maintenance.status()});
-  }
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 }

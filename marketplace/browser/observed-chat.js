@@ -108,12 +108,12 @@ async function waitForReceipt(frame,orderId,text,before,timeoutMs,check=()=>{}){
     await new Promise(resolve=>setTimeout(resolve,delay));
   }
 }
-async function send(page, order, text, {timeoutMs=15000, characterMs=60, check=()=>{}, beforeSend, beforeSubmit, beforeActivate,customerCancellation=false}={}) {
+async function send(page, order, text, {timeoutMs=15000, characterMs=60, check=()=>{}, beforeSend, beforeSubmit, beforeActivate}={}) {
   if (typeof beforeSend !== 'function' || typeof beforeSubmit !== 'function') throw Error('A persisted chat send intent and final authorization are required.');
-  if(typeof text!=='string'||!text.trim()||text.length>4000||/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(text))throw Error('Use a bounded plain-text customer message.');
+  require('../ai-chat-agent').validateOpening(text);
   if (!Number.isSafeInteger(characterMs) || characterMs < 0 || characterMs > 200) throw Error('Chat typing delay must be between 0 and 200 milliseconds.');
   if (text.length * characterMs > 45000) throw Error('The configured reply typing duration exceeds 45 seconds.');
-  const reference = await require('./order-reference').readReference(page, order, timeoutMs,{customerCancellation});
+  const reference = await require('./order-reference').readReference(page, order, timeoutMs);
   if (reference.status !== order.status) throw Error('The order status changed; refresh before sending its reply.');
   const frame = await frameFor(page, order.buyerName, timeoutMs);
   const composer = frame.getByRole('textbox', {name:'Say something...', exact:true});
@@ -131,7 +131,7 @@ async function send(page, order, text, {timeoutMs=15000, characterMs=60, check=(
   check();
   if ((await composer.innerText()).trim() !== text.trim()) throw Error('The typed reply differs from the persisted reply; nothing was submitted.');
   await button.click({trial:true, timeout:timeoutMs});
-  const currentReference=await require('./order-reference').readReference(page,order,timeoutMs,{customerCancellation});
+  const currentReference=await require('./order-reference').readReference(page,order,timeoutMs);
   if(currentReference.status!==order.status)throw Error('The order status changed while typing; the reply was not submitted.');
   await beforeSubmit(currentReference);check();
   await assertOrderPage(page,order);
