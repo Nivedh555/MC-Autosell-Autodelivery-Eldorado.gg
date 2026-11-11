@@ -5,5 +5,8 @@
   "channel": "stable",
   "publisherName": "",
   "metadataPublicKey": "",
+  "signing": {
+    "provider": "pfx"
+  },
   "reason": "Release signing must be configured by the publisher before automatic updates can be enabled."
 }

@@ -55,7 +55,7 @@ export function minecraftOnboarding(React, request) {
     const button = (text, onClick, disabled = false) => h('button', { type: 'button', onClick, disabled }, text);
     return h('div', { className: 'desk-minecraft-setup' },
       h('h4', null, 'Set up Minecraft in Prism'),
-      h('p', null, 'Choose a Prism instance and account below. Autosell installs its bridge, Fabric API and pairing file for you.'),
+      h('p', null, 'Choose a Prism instance and delivery account. Autosell installs the required mods and connects that instance to this account slot.'),
       h('div', { className: 'desk-row' },
         button(busy ? 'Working…' : 'Refresh Prism folders', () => run(async () => accept(await request('/v3/game/onboarding'))), busy),
         h('a', { href: 'https://prismlauncher.org/download/', target: '_blank', rel: 'noreferrer' }, 'Install Prism Launcher ↗')),
@@ -81,7 +81,7 @@ export function minecraftOnboarding(React, request) {
         h('label', { className: 'desk-minecraft-checkbox' }, h('input', { type: 'checkbox', checked: gameClosed, onChange: event => setGameClosed(event.target.checked) }), 'I have closed this Minecraft instance'),
         h('div', { className: 'desk-row' }, h('button', { className: 'desk-primary', disabled: busy || !gameClosed || !ign.trim() || !slots.length || !data.release.ready }, busy ? 'Installing…' : 'Install mods and pair')),
         !slots.length ? h('p', null, 'Create an account pair above before installing your delivery client.') : null) : null,
-      result ? h('div', { className: 'desk-minecraft-result', role: 'status' }, h('strong', null, 'Minecraft setup complete'), h('p', null, result.message)) : null,
+      result ? h('div', { className: 'desk-minecraft-result', role: 'status' }, h('strong', null, 'Minecraft files installed'), h('p', null, result.message)) : null,
       h('ol', { className: 'desk-minecraft-next' },
         h('li', null, 'In Prism, open Accounts → Manage Accounts → Add Microsoft. Sign in with the account that owns Minecraft Java and shows your exact IGN.'),
         h('li', null, 'In Prism Settings → Java, enable automatic Java detection and the Mojang Java download. If your Prism build needs a manual runtime, select Java 25.'),

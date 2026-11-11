@@ -232,7 +232,7 @@ function registerIpc() {
       case 'install': await updates.requestInstall(); break;
       case 'cancel-update': await updates.cancel(); break;
       case 'resume': {
-        const result = await backend.control('resume');
+        const result = await updates.resumeAfterReconciliation();
         if (result.safe !== true) throw Error(result.reason || 'Reconcile pending payments before resuming');
         await refreshMaintenance(); break;
       }

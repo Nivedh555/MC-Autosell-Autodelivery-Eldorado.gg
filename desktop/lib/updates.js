@@ -13,7 +13,7 @@ class Updates extends EventEmitter {
     const channel = ['stable', 'beta'].includes(previous.channel) ? previous.channel : config.channel;
     this.state = { installedVersion: version, latestVersion: null, channel, lastCheck: previous.lastCheck || null, phase: 'idle', progress: 0, releaseNotes: '', error: '', reason: '' };
     this.enabled = Boolean(packaged && config.enabled && config.publisherName && config.metadataPublicKey);
-    if (!this.enabled) Object.assign(this.state, { phase: 'unconfigured', reason: config.reason || 'This development build has no production signing configuration.' });
+    if (!this.enabled) Object.assign(this.state, { phase: 'unconfigured', reason: config.reason || 'Automatic updates are unavailable in this installation. Install a signed release from the publisher to enable updates.' });
     updater.autoDownload = false;
     updater.autoInstallOnAppQuit = false;
     updater.allowDowngrade = false;
@@ -33,7 +33,7 @@ class Updates extends EventEmitter {
   fail(error) { this.set({ phase: 'error', error: String(error.message || error).slice(0, 1000) }); }
   selectChannel(channel) {
     if (!['stable', 'beta'].includes(channel)) throw Error('Invalid update channel');
-    if (['checking', 'available', 'downloading', 'downloaded', 'waiting', 'installing'].includes(this.state.phase)) throw Error('Finish the pending update before changing channels');
+    if (['checking', 'available', 'downloading', 'downloaded', 'waiting', 'installing', 'recovery'].includes(this.state.phase)) throw Error('Finish the pending update before changing channels');
     this.updater.allowPrerelease = channel === 'beta';
     this.manifest = null;
     state.write(this.channelFile, { channel, lastCheck: null });
@@ -51,7 +51,7 @@ class Updates extends EventEmitter {
   }
   async check() {
     if (!this.enabled) throw Error(this.state.reason);
-    if (['checking', 'downloading', 'downloaded', 'waiting', 'installing'].includes(this.state.phase)) return this.state;
+    if (['checking', 'downloading', 'downloaded', 'waiting', 'installing', 'recovery'].includes(this.state.phase)) return this.state;
     this.set({ phase: 'checking', lastCheck: new Date().toISOString(), error: '', reason: '' });
     try {
       state.write(this.channelFile, { channel: this.state.channel, lastCheck: this.state.lastCheck });
@@ -61,7 +61,7 @@ class Updates extends EventEmitter {
       if (responses.some(response => !response.ok)) throw Error('The publisher has not published a signed release manifest for this channel');
       const bytes = Buffer.from(await responses[0].arrayBuffer());
       const signature = await responses[1].text();
-      this.manifest = verifyManifest(bytes, signature, this.config.metadataPublicKey, this.state.channel, this.version);
+      this.manifest = verifyManifest(bytes, signature, this.config.metadataPublicKey, this.state.channel, this.version, this.config.publisherName);
       this.set({ latestVersion: this.manifest.version, releaseNotes: String(this.manifest.releaseNotes || '').slice(0, 100000) });
       if (this.manifest.version === this.version) { this.set({ phase: 'current' }); return this.state; }
       const url = 'https://github.com/' + this.config.owner + '/' + this.config.repo + '/releases/download/v' + this.manifest.version + '/';
@@ -93,17 +93,35 @@ class Updates extends EventEmitter {
   async finishInstall() {
     // Backend status is rechecked after the persistent fence, immediately before shutdown.
     const status = await this.backend.control('status');
-    if (status.safe !== true) { this.set({ phase: 'waiting', reason: status.reason || 'Payments require operator attention.' }); return; }
+    if (status.safe !== true || status.active !== true || status.targetVersion !== this.state.latestVersion) { this.set({ phase: 'waiting', reason: status.reason || 'The update maintenance request changed. Review it before installing.' }); return; }
     state.write(this.journalFile, { from: this.version, target: this.state.latestVersion, requestedAt: new Date().toISOString(), phase: 'installing' });
     await this.backend.stop();
     this.set({ phase: 'installing', reason: 'Installing update…' });
-    this.install();
+    await this.install();
   }
   async cancel() {
+    if (this.installationInProgress) throw Error('The update is checking or stopping services. Wait for it to finish before cancelling.');
     if (this.state.phase !== 'waiting') throw Error('No installation is waiting');
-    const result = await this.backend.control('resume');
-    if (result.safe !== true) throw Error(result.reason || 'Backend requires reconciliation before resuming');
-    this.set({ phase: 'downloaded', reason: '' });
+    this.installationInProgress = true;
+    try {
+      const result = await this.backend.control('resume');
+      if (result.safe !== true) throw Error(result.reason || 'Backend requires reconciliation before resuming');
+      this.set({ phase: 'downloaded', reason: '' });
+    } finally { this.installationInProgress = false; }
+  }
+  async resumeAfterReconciliation() {
+    if (this.installationInProgress || ['waiting', 'installing'].includes(this.state.phase)) throw Error('An update is waiting or installing. Cancel the waiting update before resuming activity.');
+    // Serialise the resume request with both the timer and the install button.
+    this.installationInProgress = true;
+    try {
+      const result = await this.backend.control('resume');
+      if (result.safe === true && this.state.phase === 'recovery') {
+        const journal = state.read(this.journalFile, {});
+        state.write(this.journalFile, { ...journal, phase: 'reconciled', reconciledAt: new Date().toISOString(), installedVersion: this.version });
+        this.set({ phase: this.enabled ? 'idle' : 'unconfigured', error: '', reason: this.enabled ? '' : (this.config.reason || 'Automatic updates require a signed release.') });
+      }
+      return result;
+    } finally { this.installationInProgress = false; }
   }
   async validateRestart() {
     const journal = state.read(this.journalFile, null);

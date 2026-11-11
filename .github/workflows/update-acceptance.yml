@@ -1,0 +1,65 @@
+name: Windows signed update acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      from_tag:
+        description: Published signed version to install first (for example v3.0.0)
+        required: true
+      to_tag:
+        description: Published signed version that Check for Updates must install (for example v3.0.1)
+        required: true
+      channel:
+        description: Update channel
+        required: true
+        default: stable
+        type: choice
+        options: [stable, beta]
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    runs-on: windows-2025
+    timeout-minutes: 60
+    environment: windows-release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.0'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm ci --prefix desktop --no-audit --no-fund
+      - name: Download the two real signed installers
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP "autosell-signed-$([Guid]::NewGuid().ToString('N'))"
+          New-Item -ItemType Directory -Path $root | Out-Null
+          gh release download ${{ inputs.from_tag }} --pattern 'Autosell-Setup-*-x64.exe' --dir "$root/from"
+          gh release download ${{ inputs.to_tag }} --pattern 'Autosell-Setup-*-x64.exe' --dir "$root/to"
+          "ACCEPTANCE_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Install the older signed build into an isolated profile
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem "$env:ACCEPTANCE_ROOT/from/Autosell-Setup-*-x64.exe" | Select-Object -First 1
+          $install = Join-Path $env:ACCEPTANCE_ROOT 'program'
+          $process = Start-Process -FilePath $setup.FullName -ArgumentList "/S /currentuser /D=$install" -WindowStyle Hidden -PassThru
+          if (-not $process.WaitForExit(300000) -or $process.ExitCode -ne 0) { throw 'Older signed installer failed' }
+          "AUTOSELL_TEST_EXECUTABLE=$install/Autosell V3.exe" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "AUTOSELL_TEST_PROFILE=$env:ACCEPTANCE_ROOT/profile" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "AUTOSELL_TEST_TARGET_VERSION=$('${{ inputs.to_tag }}'.TrimStart('v'))" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "AUTOSELL_TEST_CHANNEL=${{ inputs.channel }}" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Drive Check for Updates, verify, install and relaunch
+        run: node desktop/scripts/test-update-acceptance.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: signed-update-acceptance
+          path: desktop/test-results/signed-update-acceptance.json

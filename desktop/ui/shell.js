@@ -1,7 +1,7 @@
 'use strict';
 const byId = id => document.getElementById(id);
 let state, tab = 'dashboard', busy = false;
-const labels = { idle: 'Ready to check for updates', unconfigured: 'Publisher setup required', checking: 'Checking for updates…', current: 'You’re up to date.', available: 'An update is available', downloading: 'Downloading update…', downloaded: 'Download complete. Ready to restart.', waiting: 'Waiting for active deliveries to finish.', installing: 'Installing update…', installed: 'Update successfully installed.', error: 'Update needs attention', recovery: 'Update recovery requires attention' };
+const labels = { idle: 'Ready to check for updates', unconfigured: 'Automatic updates are unavailable in this installation', checking: 'Checking for updates…', current: 'You are up to date.', available: 'An update is available', downloading: 'Downloading update…', downloaded: 'Download complete. Ready to restart.', waiting: 'Waiting for active deliveries to finish.', installing: 'Installing update…', installed: 'Update successfully installed.', error: 'Update needs attention', recovery: 'Update recovery requires attention' };
 function showError(error) { byId('notice').textContent = String(error.message || error).replace(/^Error invoking remote method '[^']+': Error: /, ''); byId('notice').hidden = false; }
 async function run(operation) {
   if (busy) return;
@@ -17,7 +17,7 @@ function render(next) {
   tab = next.selectedTab || 'dashboard';
   const backend = state.backend;
   const ready = backend.phase === 'ready';
-  byId('connection').textContent = ready ? 'Backend connected' : ({ starting: 'Starting backend…', importing: 'Importing workspace…', error: 'Backend needs attention' }[backend.phase] || 'Workspace locked');
+  byId('connection').textContent = ready ? 'Delivery service connected' : ({ starting: 'Starting delivery service…', importing: 'Importing workspace…', error: 'Delivery service needs attention' }[backend.phase] || 'Workspace locked');
   byId('startup').hidden = ready || tab !== 'dashboard';
   byId('updates').hidden = tab !== 'updates';
   byId('dashboard-tab').setAttribute('aria-pressed', String(tab === 'dashboard'));
@@ -50,7 +50,7 @@ function render(next) {
   byId('notes').textContent = update.releaseNotes || '';
   const maintenance = backend.maintenance;
   byId('maintenance-card').hidden = !maintenance || !(maintenance.active || maintenance.reasons?.length);
-  byId('maintenance-reason').textContent = maintenance?.reason || 'Payment dispatch is fenced. Reconcile unfinished work before resuming.';
+  byId('maintenance-reason').textContent = maintenance?.reason || 'New payments are paused. Review unfinished payments before resuming.';
   if (ready && backend.reason) showError(backend.reason);
 }
 byId('dashboard-tab').onclick = () => run(() => window.desktop.action('show-dashboard'));

@@ -11,15 +11,15 @@ const { runtimeEnvironment, Supervisor } = require('../lib/supervisor');
 const { Updates } = require('../lib/updates');
 const saved = require('../lib/state');
 const keys = crypto.generateKeyPairSync('ed25519');
-const manifest = { version: '3.0.1', channel: 'stable', artifact: { file: 'Autosell-Setup-3.0.1-x64.exe', sha512: crypto.createHash('sha512').update('fixture').digest('base64'), size: 7 }, releaseNotes: 'Verified release fixture' };
+const manifest = { version: '3.0.1', channel: 'stable', publisher: 'Autosell V3', artifact: { file: 'Autosell-Setup-3.0.1-x64.exe', sha512: crypto.createHash('sha512').update('fixture').digest('base64'), size: 7 }, releaseNotes: 'Verified release fixture' };
 const bytes = Buffer.from(JSON.stringify(manifest));
 const signature = crypto.sign(null, bytes, keys.privateKey).toString('base64');
 const info = { version: manifest.version, files: [{ url: manifest.artifact.file, sha512: manifest.artifact.sha512, size: manifest.artifact.size }] };
 test('release metadata authenticates exact bytes and binds channel and version', () => {
-  assert.deepEqual(verifyManifest(bytes, signature, keys.publicKey, 'stable', '3.0.0'), manifest);
-  assert.throws(() => verifyManifest(Buffer.from(bytes.toString().replace('3.0.1', '3.9.1')), signature, keys.publicKey, 'stable', '3.0.0'), /signature/);
-  assert.throws(() => verifyManifest(bytes, signature, keys.publicKey, 'beta', '3.0.0'), /channel/);
-  assert.throws(() => verifyManifest(bytes, signature, keys.publicKey, 'stable', '4.0.0'), /rollback/);
+  assert.deepEqual(verifyManifest(bytes, signature, keys.publicKey, 'stable', '3.0.0', 'Autosell V3'), manifest);
+  assert.throws(() => verifyManifest(Buffer.from(bytes.toString().replace('3.0.1', '3.9.1')), signature, keys.publicKey, 'stable', '3.0.0', 'Autosell V3'), /signature/);
+  assert.throws(() => verifyManifest(bytes, signature, keys.publicKey, 'beta', '3.0.0', 'Autosell V3'), /channel/);
+  assert.throws(() => verifyManifest(bytes, signature, keys.publicKey, 'stable', '4.0.0', 'Autosell V3'), /rollback/);
 });
 test('updater info must match signed artifact and contain one executable', () => {
   verifyUpdateInfo(info, manifest);
@@ -96,7 +96,7 @@ function fixture(t, safe = false) {
     control: async action => { calls.push(action); return { safe, active: true, targetVersion: '3.0.1', reason: safe ? '' : 'Payment outcome uncertain' }; },
     stop: async () => { calls.push('stop'); }
   };
-  const updates = new Updates({ updater, config: { channel: 'stable', enabled: false }, version: '3.0.0', directory, backend, install: () => calls.push('install'), packaged: false });
+  const updates = new Updates({ updater, config: { channel: 'stable', enabled: false, publisherName: 'Autosell V3' }, version: '3.0.0', directory, backend, install: () => calls.push('install'), packaged: false });
   return { updates, updater, backend, calls, directory };
 }
 test('active or uncertain payment keeps verified update pending without stopping services', async t => {
@@ -187,4 +187,53 @@ test('beta release discovery selects the highest public beta and persists channe
   assert.equal(saved.read(path.join(directory, 'update-preferences.json')).channel, 'beta');
   updates.set({ phase: 'downloaded' });
   assert.throws(() => updates.selectChannel('stable'), /pending update/);
+});
+
+test('release metadata binds the publisher identity and requires release notes', () => {
+  assert.throws(() => verifyManifest(bytes, signature, keys.publicKey, 'stable', '3.0.0', 'Different Publisher'), /publisher/);
+  const unsigned = Buffer.from(JSON.stringify({ ...manifest, releaseNotes: '' }));
+  const badSignature = crypto.sign(null, unsigned, keys.privateKey).toString('base64');
+  assert.throws(() => verifyManifest(unsigned, badSignature, keys.publicKey, 'stable', '3.0.0', 'Autosell V3'), /Release notes/);
+  assert.throws(() => verifyUpdateInfo({ ...info, files: [{ ...info.files[0], size: 8 }] }, manifest), /artifact/);
+});
+test('install and cancel are serialized so a second request cannot resume during shutdown', async t => {
+  const { updates, backend, calls } = fixture(t, true);
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  backend.control = async action => {
+    calls.push(action);
+    if (action === 'maintenance') { await gate; return { safe: true, active: true, targetVersion: '3.0.1' }; }
+    return { safe: true, active: true, targetVersion: '3.0.1' };
+  };
+  updates.set({ phase: 'downloaded', latestVersion: '3.0.1' });
+  const installing = updates.requestInstall();
+  await new Promise(resolve => setTimeout(resolve, 10));
+  await assert.rejects(updates.cancel(), /checking or stopping/);
+  await assert.rejects(updates.resumeAfterReconciliation(), /waiting or installing/);
+  release();
+  await installing;
+  assert.deepEqual(calls, ['maintenance', 'status', 'stop', 'install']);
+});
+test('a final maintenance target change blocks installation after the fence', async t => {
+  const { updates, backend, calls } = fixture(t, true);
+  backend.control = async action => {
+    calls.push(action);
+    return action === 'maintenance'
+      ? { safe: true, active: true, targetVersion: '3.0.1' }
+      : { safe: true, active: true, targetVersion: '9.9.9' };
+  };
+  updates.set({ phase: 'downloaded', latestVersion: '3.0.1' });
+  await updates.requestInstall();
+  assert.deepEqual(calls, ['maintenance', 'status']);
+  assert.equal(updates.state.phase, 'waiting');
+  assert.match(updates.state.reason, /changed|review/i);
+});
+test('an interrupted download can be retried without accepting mismatched bytes', async t => {
+  const { updates, updater } = fixture(t);
+  updates.manifest = manifest;
+  updates.set({ phase: 'error', error: 'Download interrupted' });
+  updater.downloadUpdate = async () => updater.emit('update-downloaded', info);
+  await updates.download();
+  assert.equal(updates.state.phase, 'downloaded');
+  assert.equal(updates.state.progress, 100);
 });

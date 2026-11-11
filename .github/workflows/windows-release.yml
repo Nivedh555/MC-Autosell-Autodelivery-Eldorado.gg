@@ -76,11 +76,18 @@ jobs:
       - name: Require matching tag and protected signing configuration
         run: node desktop/scripts/configure-release.js
         env:
+          AUTOSELL_SIGNING_PROVIDER: ${{ vars.AUTOSELL_SIGNING_PROVIDER }}
           AUTOSELL_PUBLISHER_NAME: ${{ vars.AUTOSELL_PUBLISHER_NAME }}
           AUTOSELL_UPDATE_PUBLIC_KEY: ${{ vars.AUTOSELL_UPDATE_PUBLIC_KEY }}
           AUTOSELL_UPDATE_PRIVATE_KEY: ${{ secrets.AUTOSELL_UPDATE_PRIVATE_KEY }}
           CSC_LINK: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
       - name: Stage runtime without release signing credentials
         run: npm run prepare:resources --prefix desktop
       - name: Package and sign Windows binaries
@@ -88,13 +95,21 @@ jobs:
         env:
           CSC_LINK: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-      - name: Verify Windows signatures
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      - name: Verify Windows signatures and publisher identity
         shell: pwsh
+        env:
+          AUTOSELL_PUBLISHER_NAME: ${{ vars.AUTOSELL_PUBLISHER_NAME }}
         run: |
           $files = @((Get-ChildItem desktop/dist/Autosell-Setup-*.exe).FullName, (Resolve-Path 'desktop/dist/win-unpacked/Autosell V3.exe').Path)
           foreach ($file in $files) {
             $signature = Get-AuthenticodeSignature -LiteralPath $file
             if ($signature.Status -ne 'Valid') { throw "Invalid Authenticode signature on $file" }
+            if (-not $signature.SignerCertificate.Subject.Contains($env:AUTOSELL_PUBLISHER_NAME)) {
+              throw "Publisher identity mismatch on $file"
+            }
           }
       - name: Exercise the signed installer and installed runtime on the disposable runner
         shell: pwsh

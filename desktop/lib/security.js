@@ -11,12 +11,14 @@ function externalUrl(value) {
   if (!allowed.includes(url.hostname)) throw Error('External link host is not allowed');
   return url.href;
 }
-function verifyManifest(bytes, signature, publicKey, channel, currentVersion) {
+function verifyManifest(bytes, signature, publicKey, channel, currentVersion, publisherName) {
   if (!Buffer.isBuffer(bytes) || bytes.length > 262144) throw Error('Invalid release metadata');
   if (!crypto.verify(null, bytes, publicKey, Buffer.from(signature.trim(), 'base64'))) throw Error('Release metadata signature verification failed');
   const data = JSON.parse(bytes.toString('utf8'));
   if (data.channel !== channel || !/^\d+\.\d+\.\d+(?:-beta\.\d+)?$/.test(data.version)) throw Error('Release channel or version is invalid');
   if (data.version.includes('-beta.') !== (channel === 'beta')) throw Error('Release version does not belong to the selected channel');
+  if (!data.publisher || typeof data.publisher !== 'string' || data.publisher !== publisherName) throw Error('Release publisher identity does not match this installation');
+  if (typeof data.releaseNotes !== 'string' || !data.releaseNotes.trim()) throw Error('Release notes are missing');
   if (!data.artifact || !/^Autosell-Setup-\d+\.\d+\.\d+(?:-beta\.\d+)?-x64\.exe$/.test(data.artifact.file)) throw Error('Unexpected update artifact');
   if (!/^[A-Za-z0-9+/]{86}==$/.test(data.artifact.sha512) || !Number.isSafeInteger(data.artifact.size) || data.artifact.size < 1) throw Error('Invalid artifact digest or size');
   if (data.artifact.file !== 'Autosell-Setup-' + data.version + '-x64.exe') throw Error('Release filename does not match version');

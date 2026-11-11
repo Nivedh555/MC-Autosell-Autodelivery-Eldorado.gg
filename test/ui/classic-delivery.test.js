@@ -33,7 +33,7 @@ test("the dashboard opens saved links, uses the chosen seller browser and saves 
   await page.getByRole('heading',{name:'Minecraft delivery clients'}).waitFor();assert(await page.getByText('seller1 · FixturePlayer').isVisible());
   if(process.env.AUTOSELL_UI_CAPTURE_DIR)await page.screenshot({path:path.join(process.env.AUTOSELL_UI_CAPTURE_DIR,'classic-pairs.png'),fullPage:true});
   await page.goto(base+'/classic#connections');
-  await page.getByText('Seller browser',{exact:true}).waitFor();
+  await page.locator('#seller-browser-setup').waitFor();
   if(process.env.AUTOSELL_UI_CAPTURE_DIR)await page.screenshot({path:path.join(process.env.AUTOSELL_UI_CAPTURE_DIR,'classic-eldorado.png'),fullPage:true});
   const select=page.locator('select').filter({has:page.locator('option[value=msedge]')});
   assert.equal(await select.inputValue(),'chromium');await select.selectOption('msedge');
@@ -66,7 +66,7 @@ test("the dashboard opens saved links, uses the chosen seller browser and saves 
   const review=page.locator('section').filter({has:page.getByRole('heading',{name:'Order proof and review'})});
   await review.getByText('RECONCILIATION_REQUIRED',{exact:true}).waitFor();
   assert(await review.getByText('UNKNOWN · proof-text',{exact:true}).isVisible());
-  assert.equal(await review.getByRole('link',{name:'View order journal'}).first().getAttribute('href'),'/api/marketplace/orders/paid-closed/progress');
+  assert.equal(await review.getByRole('link',{name:'View delivery record'}).first().getAttribute('href'),'/api/marketplace/orders/paid-closed/progress');
   assert.deepEqual(errors,[]);
 });
 

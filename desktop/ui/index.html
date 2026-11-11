@@ -17,7 +17,7 @@
     <div class="welcome">
       <p class="eyebrow">YOUR DELIVERY WORKSPACE</p><h1 id="startup-title">Welcome to Autosell V3</h1>
       <p id="startup-reason" role="status">Set up your protected workspace or import an existing installation.</p>
-      <div id="import-section"><button id="import-button" class="secondary">Import existing installation</button><p class="hint">Stop the original app first. Import creates a verified backup and preserves your journals, browser sessions, and settings.</p><hr></div>
+      <div id="import-section"><button id="import-button" class="secondary">Import existing installation</button><p class="hint">Stop the original app first. Import creates a verified backup and preserves your payment records, browser sessions, and settings.</p><hr></div>
       <form id="unlock-form">
         <label for="passphrase">Vault passphrase</label>
         <input id="passphrase" type="password" minlength="12" maxlength="1024" autocomplete="current-password" required aria-describedby="vault-help">
@@ -25,21 +25,21 @@
         <label class="checkbox"><input id="remember" type="checkbox"> Remember with Windows credential protection</label>
         <button id="start-button" class="primary" type="submit">Open workspace</button>
       </form>
-      <p class="requirements">Node.js and Chromium are included. Connect Minecraft 26.3 with Fabric Loader 0.20.1 and both included bridge JARs. Minecraft, Java and a Minecraft account are installed separately.</p>
+      <p class="requirements">Set up your Minecraft delivery account in AutoSell Pairs. You will need Prism Launcher and a Minecraft Java account. Autosell guides you through installing the required mods and connecting the game.</p>
     </div>
   </main>
   <section id="updates" class="updates" hidden>
     <div class="section-heading"><div><p class="eyebrow">APPLICATION SETTINGS</p><h1>Updates</h1></div><button id="check-button" data-action="check" class="secondary">Check for updates</button></div>
     <article class="card">
-      <div class="release-top"><h2 id="update-status">Checking release configuration…</h2><label class="channel">Channel <select id="channel"><option value="stable">Stable</option><option value="beta">Beta</option></select></label></div>
+      <div class="release-top"><h2 id="update-status">Loading update status…</h2><label class="channel">Channel <select id="channel"><option value="stable">Stable</option><option value="beta">Beta</option></select></label></div>
       <p id="update-reason"></p><p id="update-error" class="error" role="alert"></p>
       <dl class="versions"><div><dt>Installed version</dt><dd id="installed">—</dd></div><div><dt>Latest version</dt><dd id="latest">—</dd></div><div><dt>Last checked</dt><dd id="last-check">—</dd></div></dl>
       <div id="download-progress" hidden><progress id="progress" max="100" value="0" aria-label="Update download progress"></progress><p id="progress-text"></p></div>
       <div class="actions"><button id="install-button" data-action="install" class="primary" hidden>Restart and install safely</button><button id="retry-button" data-action="check" class="secondary" hidden>Retry update check</button><button id="cancel-button" data-action="cancel-update" class="secondary" hidden>Postpone installation</button></div>
       <div id="release-notes" hidden><h3>Release notes</h3><pre id="notes"></pre></div>
     </article>
-    <article class="card" id="maintenance-card" hidden><h2>Delivery maintenance</h2><p id="maintenance-reason"></p><button data-action="resume" class="secondary">Resume after reconciliation</button></article>
-    <article class="card"><h2>Workspace &amp; application</h2><p>Closing the window keeps delivery monitoring active in the system tray. Exit safely waits for payment operations to reach a verified boundary.</p><div class="actions"><button data-action="open-data" class="secondary">Open workspace folder</button><button data-action="open-mods" class="secondary">Open Minecraft bridge files</button><button data-action="quit" class="secondary">Exit safely</button></div></article>
+    <article class="card" id="maintenance-card" hidden><h2>Delivery maintenance</h2><p id="maintenance-reason"></p><button data-action="resume" class="secondary">Resume after payment review</button></article>
+    <article class="card"><h2>Workspace &amp; application</h2><p>Closing the window keeps delivery monitoring active in the system tray. Exit safely waits until no payment is active or awaiting verification.</p><div class="actions"><button data-action="open-data" class="secondary">Open workspace folder</button><button data-action="open-mods" class="secondary">Open Minecraft mod files</button><button data-action="quit" class="secondary">Exit safely</button></div></article>
   </section>
   <div id="notice" role="alert" hidden></div>
   <script src="shell.js"></script>

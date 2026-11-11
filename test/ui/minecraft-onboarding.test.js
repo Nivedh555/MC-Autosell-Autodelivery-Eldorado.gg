@@ -39,7 +39,7 @@ test("the shipped dashboard installs the chosen Minecraft instance and gives exa
   assert.equal(await setup.getByRole("button", { name: "Install mods and pair" }).isDisabled(), true);
   await setup.getByLabel("I have closed this Minecraft instance").check();
   await setup.getByRole("button", { name: "Install mods and pair" }).click();
-  await setup.getByText("Minecraft setup complete", { exact: true }).waitFor();
+  await setup.getByText("Minecraft files installed", { exact: true }).waitFor();
   const request = calls.find(call => call.path === "/v3/game/onboarding/install");
   assert.deepEqual(request.body, { rootId: "prism-root", instanceId: "compatible", accountId: "seller1", ign: "FixturePlayer", gameClosed: true });
   assert.match(await setup.innerText(), /Accounts → Manage Accounts → Add Microsoft/);

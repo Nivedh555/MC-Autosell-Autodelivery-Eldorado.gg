@@ -2,6 +2,21 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const release = JSON.parse(fs.readFileSync(path.join(__dirname, 'release-config.json'), 'utf8'));
+const signing = release.signing || { provider: 'pfx' };
+if (release.enabled && !['pfx', 'azure'].includes(signing.provider)) throw Error('Unknown Windows signing provider');
+const windowsSigning = release.enabled
+  ? signing.provider === 'azure'
+    ? { azureSignOptions: {
+        publisherName: release.publisherName,
+        endpoint: signing.endpoint,
+        codeSigningAccountName: signing.accountName,
+        certificateProfileName: signing.profileName,
+        fileDigest: 'SHA256',
+        timestampDigest: 'SHA256',
+        timestampRfc3161: 'http://timestamp.acs.microsoft.com',
+      } }
+    : { signtoolOptions: { publisherName: release.publisherName } }
+  : {};
 module.exports = {
   appId: 'gg.autosell.desktop',
   productName: 'Autosell V3',
@@ -17,7 +32,7 @@ module.exports = {
     icon: 'assets/icon.ico',
     executableName: 'Autosell V3',
     verifyUpdateCodeSignature: true,
-    ...(release.enabled ? { signtoolOptions: { publisherName: release.publisherName } } : {})
+    ...windowsSigning,
   },
   nsis: {
     oneClick: false,

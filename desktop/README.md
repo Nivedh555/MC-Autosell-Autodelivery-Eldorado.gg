@@ -16,7 +16,7 @@ npm run test:installed --prefix desktop
 
 On a fresh developer machine, install the test browser before `test:local` with `node node_modules/playwright/cli.js install chromium`. Packaging installs its own browser under `desktop/staging/browsers` and verifies the pinned Node ZIP SHA256 before extraction. Source files in `web/dist` are the existing distributable dashboard. There is no frontend build project in the supplied application. Packaging copies those assets, which the backend/UI tests validate.
 
-The installer is written to `desktop/dist/Autosell-Setup-3.0.0-x64.exe`. `npm start --prefix desktop` runs the shell after resources have been prepared. The installer provides destination selection, Start Menu registration, an optional desktop shortcut, versioned Windows metadata, and an uninstaller. It refuses to overwrite files while the desktop or bundled backend is running. Choose **Exit safely** first.
+The installer is written to `desktop/dist/Autosell-Setup-3.0.1-x64.exe`. `npm start --prefix desktop` runs the shell after resources have been prepared. The installer provides destination selection, Start Menu registration, an optional desktop shortcut, versioned Windows metadata, and an uninstaller. It refuses to overwrite files while the desktop or bundled backend is running. Choose **Exit safely** first.
 
 ## First launch and migration
 
@@ -46,15 +46,22 @@ Complete silent removal requires both explicit flags `--remove-all-autosell-data
 
 The workflow is `.github/workflows/windows-release.yml`. Pull requests and main-branch pushes run the locked tests and produce a development installer. Version tags run validation first, then the protected `windows-release` environment performs the production build, signing, artifact validation and publication to the configured GitHub repository.
 
-Configure the repository environment with release-tag restrictions and required reviewers. Set these environment variables and secrets before publishing.
+Configure the repository environment with release-tag restrictions and required reviewers. Set these environment variables and secrets before publishing. The exact setup steps are in [RELEASE-SETUP.md](RELEASE-SETUP.md).
 
 | Name | Type | Value |
 | --- | --- | --- |
+| `AUTOSELL_SIGNING_PROVIDER` | Environment variable | `pfx` or `azure` |
 | `AUTOSELL_PUBLISHER_NAME` | Environment variable | Exact Windows certificate publisher common name or full distinguished name |
 | `AUTOSELL_UPDATE_PUBLIC_KEY` | Environment variable | Ed25519 public key in PEM format |
 | `AUTOSELL_UPDATE_PRIVATE_KEY` | Environment secret | Corresponding Ed25519 private key in PEM format |
-| `WINDOWS_CERTIFICATE_PFX_BASE64` | Environment secret | Base64 encoded code-signing PFX accepted by electron-builder |
+| `WINDOWS_CERTIFICATE_PFX_BASE64` | Environment secret | Base64 encoded code-signing PFX for the `pfx` path |
 | `WINDOWS_CERTIFICATE_PASSWORD` | Environment secret | PFX password |
+| `AZURE_SIGNING_ENDPOINT` | Environment variable | Azure Artifact Signing account endpoint for the `azure` path |
+| `AZURE_SIGNING_ACCOUNT` | Environment variable | Azure code signing account name |
+| `AZURE_SIGNING_PROFILE` | Environment variable | Azure certificate profile name |
+| `AZURE_TENANT_ID` | Environment variable | Microsoft Entra tenant ID |
+| `AZURE_CLIENT_ID` | Environment variable | Azure service principal application ID |
+| `AZURE_CLIENT_SECRET` | Environment secret | Azure service principal secret used by the pinned signing module |
 
 The workflow uses the repository-scoped `GITHUB_TOKEN` to publish. Private signing keys and credentials remain in the protected job steps. The distributed app contains only the public key and publisher identity. Release configuration fails closed if any required value is missing. This checkout has automatic updating disabled until production signing is configured.
 

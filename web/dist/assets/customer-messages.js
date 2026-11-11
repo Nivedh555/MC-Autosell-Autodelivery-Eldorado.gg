@@ -267,7 +267,7 @@ export function createCustomerMessages(React, request) {
         h(
           "p",
           null,
-          "Delivery completion and confirmation-guide images start disabled. Enable them only if you want them in future deliveries.",
+          "Enable the completion message and confirmation-guide images to include them after future deliveries.",
         ),
         error
           ? h("p", { role: "alert", className: "message-error" }, error)
@@ -337,7 +337,7 @@ export function createCustomerMessages(React, request) {
             h(
               "p",
               null,
-              "Send the two instructional pictures after delivery. These are separate from the required genuine payment receipt.",
+              "Send instructions for confirming delivery and leaving a review after the payment receipt.",
             ),
             h(
               "label",

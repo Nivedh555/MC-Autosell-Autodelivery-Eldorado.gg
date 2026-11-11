@@ -5,11 +5,11 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 function runtimeEnvironment(runtime, home, token, passphrase, recovery) {
   const env = {};
-  for (const name of ['SystemRoot', 'SystemDrive', 'COMSPEC', 'ComSpec', 'WINDIR', 'USERPROFILE', 'LOCALAPPDATA', 'APPDATA', 'TEMP', 'TMP', 'HOMEDRIVE', 'HOMEPATH']) {
+  for (const name of ['SystemRoot', 'SystemDrive', 'COMSPEC', 'ComSpec', 'WINDIR', 'ProgramFiles', 'ProgramFiles(x86)', 'ProgramW6432', 'USERPROFILE', 'LOCALAPPDATA', 'APPDATA', 'TEMP', 'TMP', 'HOMEDRIVE', 'HOMEPATH']) {
     if (process.env[name]) env[name] = process.env[name];
   }
   Object.assign(env, {
-    PATH: [path.join(runtime, 'node'), path.join(process.env.SystemRoot || 'C:\\Windows', 'System32'), process.env.SystemRoot || 'C:\\Windows'].join(path.delimiter),
+    PATH: [path.join(runtime, 'node'), path.join(process.env.SystemRoot || 'C:\\Windows', 'System32'), path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0'), process.env.SystemRoot || 'C:\\Windows'].join(path.delimiter),
     NODE_ENV: 'production',
     AUTOSELL_HOME: home,
     AUTOSELL_DESKTOP: '1',

@@ -59,7 +59,7 @@ router.get(
       .all()
       .map(({ data, ...e }) => ({ ...e, data: JSON.parse(data) }));
     res.json({
-      version: "3.0.0",
+      version: "3.0.1",
       runtime:s.buildStatus?.snapshot()||null,
       gameVersion: "26.3",
       platform: process.platform,

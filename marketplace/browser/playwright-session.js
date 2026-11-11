@@ -9,8 +9,13 @@ async function readDashboardSellerIdentity(page,timeoutMs){
   const dashboard='https://www.eldorado.gg/dashboard/orders/sold';
   const isDashboard=()=>{try{const url=new URL(page.url());return url.origin==='https://www.eldorado.gg'&&url.pathname.startsWith('/dashboard/');}catch{return false;}};
   try{
-                                                                         
-                                                                          
+    // Leave an in-progress login or human verification on its current page.
+    // Repeated connection checks must not restart the authentication redirect.
+    const current=new URL(page.url());
+    const title=typeof page.title==='function' ? await page.title() : '';
+    if(current.hostname==='login.eldorado.gg' || /just a moment|performing security verification|attention required.*cloudflare/i.test(title)) {
+      throw Error('Finish the sign-in or security verification in your seller browser, then click Check connection. This page has been left open.');
+    }
     if(!isDashboard())await page.goto(dashboard,{waitUntil:'domcontentloaded',timeout:timeoutMs});
     if(!isDashboard())throw Error('Sign in to the selected Eldorado seller Chrome profile, then check its connection again.');
     const identity=page.locator('eld-dashboard-sidenav-user a[href]');

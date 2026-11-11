@@ -128,7 +128,7 @@ router.post(
     const { store } = services;
     if (!store) return res.status(503).json({ success: false, error: 'Settings store unavailable' });
     const b = req.body || {};
-    if (b.eldorado) return res.status(409).json({ error: 'Use the contract-gated Eldorado configuration in /operations' });
+    if (b.eldorado) return res.status(409).json({ error: 'Configure Eldorado in Eldorado Setup.' });
     if (b.pricePerSpawnerUsd !== undefined && Number(b.pricePerSpawnerUsd) > 0) store.setPrice(Number(b.pricePerSpawnerUsd));
     if (b.ratePerMillion !== undefined && Number(b.ratePerMillion) > 0) store.setRate(Number(b.ratePerMillion));
     if (b.ltcSendEnabled !== undefined) store.setSetting('ltcSendEnabled', Boolean(b.ltcSendEnabled));
