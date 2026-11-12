@@ -140,7 +140,7 @@ class AiChatAgent extends EventEmitter {
     if(this.services.gameBridge){
       const order=JSON.parse(row.payload);
       const quantity=require('./order-chat-flow').quantityForOrder(order,order.orderReference);
-      reply=require('./customer-messages').render('opening',{buyer:order.buyerName||order.buyerMarketplaceId||order.browserOrder?.buyerName,amount:quantity});
+      reply=await require('./customer-messages').renderConfigured(this.services,'opening',{buyer:order.buyerName||order.buyerMarketplaceId||order.browserOrder?.buyerName,amount:quantity,url:'https://www.eldorado.gg/order/'+orderId});
     }
     validateOpening(reply);
     const {min,max}=require('./chat-timing').chatTiming(config);

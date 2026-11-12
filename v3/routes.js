@@ -24,6 +24,28 @@ const secretKeys = [
   "eldorado.api.clientSecret",
   "wallet.ltc.blockcypherToken",
 ];
+const customerMessages=require('../marketplace/customer-messages');
+router.get('/eldorado/customer-messages',run(async(_req,res)=>{
+  const templates=await s.settings.get('eldorado.chat.templates');
+  const observedTax=s.db?.raw()?require('../minecraft/donutsmp-tax').observedRate(s.db.raw()):null;
+  const images={};
+  for(const slot of Object.keys(customerMessages.guideSlots)){
+    const custom=path.join(customerMessages.customGuideDirectory,slot+'.png');
+    images[slot]=fs.existsSync(custom)?'data:image/png;base64,'+fs.readFileSync(custom).toString('base64'):'/buyer-guides/'+customerMessages.guideSlots[slot];
+  }
+  res.json({templates,images,tax:observedTax?{basisPoints:observedTax.basisPoints,sourceOrderId:observedTax.orderId}:null});
+}));
+router.post('/eldorado/customer-messages',run(async(req,res)=>{
+  const templates=customerMessages.validateTemplates(req.body.templates);
+  await s.settings.set('eldorado.chat.templates',templates,'owner');
+  res.json({success:true,message:'Buyer messages saved. New conversations use these texts; already queued messages retain their original wording.'});
+}));
+router.post('/eldorado/customer-messages/image/:slot',run(async(req,res)=>{
+  try{
+    const image=customerMessages.saveGuide(req.params.slot,req.body?.dataUrl);
+    res.json({success:true,image,message:'Guide image saved. New uploads use this image; existing chat attachments remain unchanged.'});
+  }catch(error){res.status(400).json({error:error.message});}
+}));
 router.get(
   "/overview",
   run(async (_req, res) => {

@@ -93,16 +93,17 @@ test("the signed delivery pack contains the original order-specific PNG and reje
     for(let row=0;row<crop.height;row++)assert.deepEqual(crop.data.subarray(row*crop.width*4,(row+1)*crop.width*4),
       original.data.subarray(((70+row)*original.width+5)*4,((70+row)*original.width+125)*4));
     await assert.rejects(generator.generateDeliveryProof({...payload,screenshots:[{...source,receipt:undefined}]}),/missing verified render geometry/);
-    const uploads=[];
+    const uploads=[],timeline=[];
     const fulfillment=new(require('../../marketplace/browser/fulfillment').BrowserFulfillment)({
-      gameBridge:{},vault:{retrieve:async()=>privateKey.export({type:'pkcs8',format:'pem'})},settings:{get:async()=>({autoSend:true})},
+      gameBridge:{},vault:{retrieve:async()=>privateKey.export({type:'pkcs8',format:'pem'})},settings:{get:async key=>key==='eldorado.chat.templates'?require('../../web/dist/buyer-guides/messages.json'):{autoSend:true}},
       deliveryService:{repo:{get:()=>({account_id:'seller1'}),chunks:()=>payload.chunks}},
-      browserBridge:{sendOrderMessageObserved:async()=>({}),uploadOrderEvidenceObserved:async(_order,file)=>uploads.push(path.basename(file))}
+      browserBridge:{sendOrderMessageObserved:async()=>{timeline.push('proof-text');return {};},uploadOrderEvidenceObserved:async(_order,file)=>{uploads.push(path.basename(file));timeline.push('proof-image');}}
     });
     fulfillment.authorize=async()=>{};
     const deliveryOrder={id:payload.orderId,amount:payload.amount,buyerIgn:payload.buyerIgn,browserOrder:{id:payload.orderId},browserBinding:{sellerHref:'seller'}};
     await fulfillment.uploadEvidence(deliveryOrder,proof);
     assert.deepEqual(uploads,[proof.chatImage]);
+    assert.deepEqual(timeline,['proof-image','proof-text']);
     await assert.rejects(fulfillment.uploadEvidence(deliveryOrder,{...proof,chatImage:null}),/cropped receipt is required/);
     await assert.rejects(fulfillment.uploadEvidence({...deliveryOrder,buyerIgn:'Different'},proof),/different order or recipient/);
     await assert.rejects(

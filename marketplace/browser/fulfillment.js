@@ -112,8 +112,9 @@ class BrowserFulfillment {
     } catch (error) { throw forEvidenceReview(error); }
     const authorize=()=>this.authorize(order,s.deliveryService.repo.get(order.id).account_id);
     if(evidence.screenshotCaptured){
+      const uploaded=await s.browserBridge.uploadOrderEvidenceObserved(order.browserOrder,path.join(base,evidence.chatImage),order.browserBinding.sellerHref,authorize);
       await require('../customer-messages').sendStage(s,order,'proof',authorize);
-      return s.browserBridge.uploadOrderEvidenceObserved(order.browserOrder,path.join(base,evidence.chatImage),order.browserBinding.sellerHref,authorize);
+      return uploaded;
     }
     return s.browserBridge.uploadOrderEvidenceObserved(order.browserOrder,path.join(base,'delivery-logs.txt'),order.browserBinding.sellerHref,authorize);
   }

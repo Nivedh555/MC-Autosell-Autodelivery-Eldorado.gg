@@ -173,9 +173,13 @@ class DeliveryRepository {
     this.transaction(() => {
       const chunk = this.chunks(id)[index];
       if (!chunk || chunk.state !== 'PAY_SENT') throw new Error('Chunk has no recorded send');
-      this.db.prepare("UPDATE delivery_chunks SET state='PAY_VERIFIED',after_balance=?,result=? WHERE order_id=? AND chunk_index=?")
-        .run(String(result.after), JSON.stringify(result), id, index);
-      ledger?.append({ idempotencyKey: `delivery:${id}:${index}`, entryType: 'delivery', currency: 'donut', amount: Number(chunk.debit), referenceType: 'marketplace_order', referenceId: id, accountId: account, metadata: { recipientAmount: chunk.amount, mode: this.get(id).mode } });
+      const debit = result.expectedDebit === undefined ? BigInt(chunk.debit) : BigInt(result.expectedDebit);
+      if (debit < BigInt(chunk.command_amount) || debit > BigInt(Number.MAX_SAFE_INTEGER) ||
+        (result.expectedDebit !== undefined && (!result.verified || BigInt(chunk.before_balance) - BigInt(result.after) !== debit)))
+        throw new Error('Payment debit does not match the verified receipt and balances');
+      this.db.prepare("UPDATE delivery_chunks SET state='PAY_VERIFIED',debit=?,after_balance=?,result=? WHERE order_id=? AND chunk_index=?")
+        .run(debit.toString(), String(result.after), JSON.stringify(result), id, index);
+      ledger?.append({ idempotencyKey: `delivery:${id}:${index}`, entryType: 'delivery', currency: 'donut', amount: Number(debit), referenceType: 'marketplace_order', referenceId: id, accountId: account, metadata: { recipientAmount: chunk.amount, mode: this.get(id).mode } });
       onVerified?.(chunk);
       // The server can confirm an in-flight debit after Eldorado canceled the order.
       // Keep the evidence and ledger entry without reopening the delivery.

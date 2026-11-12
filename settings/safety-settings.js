@@ -19,6 +19,7 @@ const defaults = {
   'treasury.policy': {},
   'treasury.forwarding': {},
   'eldorado.chat.local': {},
+  'eldorado.chat.templates': require('../web/dist/buyer-guides/messages.json'),
   'eldorado.connection': 'browser',
   'eldorado.browser.profile': require('../marketplace/browser/profile.json'),
   'eldorado.browser.options': {...require('../marketplace/browser/playwright-session').DEFAULTS,channel:'chromium',sessionMode:'persistent'},

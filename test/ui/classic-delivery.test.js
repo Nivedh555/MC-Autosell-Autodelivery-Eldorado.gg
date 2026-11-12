@@ -18,6 +18,10 @@ test("the original dashboard opens saved links, uses the chosen seller browser a
     if(req.path==="/v3/overview")return res.json({accounts:[{id:"seller1",ign:"FixturePlayer",connected:false}],orders:[],payouts:[],wallet:{}});
     if(req.path==="/v3/review")return res.json({deliveries:[{id:"paid-closed",state:"RECONCILIATION_REQUIRED",reason:"Marketplace canceled after payment"}],
       messages:[{id:"paid-closed",message:"proof-text",state:"UNKNOWN",reason:"Read-only receipt check pending"}]});
+    if(req.path==="/v3/eldorado/customer-messages"){
+      if(req.method==='POST'){calls.push({templates:req.body.templates});return res.json({...success,message:'Buyer messages saved.'});}
+      return res.json({templates:require('../../web/dist/buyer-guides/messages.json'),images:{username:'/buyer-guides/which-name.jpg',confirm:'/buyer-guides/how-to-confirm-1.png',feedback:'/buyer-guides/how-to-confirm-2.png'}});
+    }
     return res.json({...success,pairs:[],orders:[],sellers:[],accounts:[],sales:[]});
   });
   app.get(['/','/classic'],(_req,res)=>res.sendFile(path.join(dist,'index.html')));app.use(express.static(dist));
@@ -49,7 +53,11 @@ test("the original dashboard opens saved links, uses the chosen seller browser a
   await page.getByRole('link',{name:'Preview the exact messages and pictures'}).click();await page.getByRole('heading',{name:'Eldorado buyer messages'}).waitFor();
   const images=page.locator('.desk-example img');await images.nth(2).waitFor();
   assert(await images.evaluateAll(nodes=>nodes.every(n=>n.complete&&n.naturalWidth>0)));
-  assert(await page.getByText("Done! Here's your proof 📸",{exact:true}).isVisible());
+  assert(await page.locator('pre').getByText("Done! Here's your proof 📸",{exact:true}).isVisible());
+  await page.getByText('After payment verification',{exact:true}).locator('..').locator('textarea').fill('Payment confirmed for {ign}.');
+  await page.getByRole('button',{name:'Save buyer messages'}).click();
+  await page.getByText('Buyer messages saved.',{exact:true}).waitFor();
+  assert.equal(calls.at(-1).templates.proof,'Payment confirmed for {ign}.');
   if(process.env.AUTOSELL_UI_CAPTURE_DIR)await page.screenshot({path:path.join(process.env.AUTOSELL_UI_CAPTURE_DIR,'classic-messages.png'),fullPage:true});
   assert.equal(await page.getByText('3. Shop assistant',{exact:true}).count(),0);assert.deepEqual(errors,[]);
   await page.goto(base+'/classic#orders');

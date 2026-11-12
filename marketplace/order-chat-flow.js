@@ -1,14 +1,25 @@
 'use strict';
 const DEFAULT_OPENING='Thanks for the order!\n\nPlease reply with only your Minecraft IGN — the name on the scoreboard on the right (example picture attached).\n\n• If your name contains an underscore (_), put the whole name in quotes: "_Steve" or "_MS_2".\n• Bedrock: include the dot at the start, e.g. .Steve.\n\nI’ll ask you to confirm with Y or N, then send the coins.\n\nType cancel if you want this order cancelled.';
 function confirmationPrompt(ign,amount){
- if(amount!=null)return require('./customer-messages').render('confirm',{amount,ign});
+ if(amount!=null){
+  const services=require('../services');
+  const selected=services.settings?.getSync?.('eldorado.chat.templates');
+  return require('./customer-messages').render('confirm',{amount,ign},selected||require('./customer-messages').templates);
+ }
  const amountLine=/^[1-9][0-9]*$/.test(String(amount))?'Sending '+BigInt(amount).toLocaleString('en-US')+' Donut dollars to "'+ign+'".':'Confirm your Minecraft IGN: "'+ign+'".';
  return amountLine+'\nReply Y to confirm or N to enter it again.';
 }
 function quantityForOrder(order,reference){
- if(!require('../services').gameBridge)return undefined;
+ const services=require('../services');
+ if(!services.gameBridge)return undefined;
  const amount=/^[1-9][0-9]*$/.test(String(order?.amount))?String(order.amount):require('./browser/observed-offers').coins(reference?.quantityDisplay||order?.quantityDisplay||'');
  if(!amount||!/^\d+$/.test(amount)||BigInt(amount)<1n)throw Error('The order amount is unavailable for buyer confirmation');
+ const policy=services.settings?.getSync?.('delivery.policy');
+ if(policy?.taxMode==='sender_budget'){
+  const rate=require('../minecraft/donutsmp-tax').observedRate(services.db.raw());
+  const effective=require('../minecraft/verified-payments').deliveryPolicy(policy,rate?.basisPoints);
+  return require('../minecraft/verified-payments').splitAmount(amount,effective).reduce((sum,part)=>sum+part.command,0n).toString();
+ }
  return amount;
 }
 function selection(messages,{confirmIgn=true,...options}={}){

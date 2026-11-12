@@ -83,13 +83,13 @@ class CompletionNotifications {
               throw Error("Delivery is paused or held for review");
           };
           const messages=require('../marketplace/customer-messages');
-          const text=messages.render('delivered',{url:'https://www.eldorado.gg/order/'+row.id});
+          const text=await messages.renderConfigured(s,'delivered',{buyer:saved.buyerName||saved.buyerMarketplaceId,amount:saved.amount,ign:saved.buyerIgn,url:'https://www.eldorado.gg/order/'+row.id});
           // A previously submitted completion has to retain its original text for receipt reconciliation.
           const previous=db.prepare("SELECT request FROM browser_actions WHERE operation='sendMessageObserved' AND resource_id=? AND json_extract(request,'$.messageId')=? LIMIT 1").get(row.id,'v3-completion:'+row.id);
           const outgoing=previous?JSON.parse(previous.request).text:text;
           await s.browserBridge.sendOrderMessageObserved(order,outgoing,'v3-completion:'+row.id,saved.browserBinding.sellerHref,authorize);
-          for(const filename of ['how-to-confirm-1.png','how-to-confirm-2.png']){
-            await s.browserBridge.uploadOrderEvidenceObserved(order,require('node:path').join(messages.guideDirectory,filename),saved.browserBinding.sellerHref,authorize,{confirmationGuide:true});
+          for(const slot of ['confirm','feedback']){
+            await s.browserBridge.uploadOrderEvidenceObserved(order,messages.guidePath(slot),saved.browserBinding.sellerHref,authorize,{confirmationGuide:true});
           }
           this.finished(row.id,null);
         } catch (error) {

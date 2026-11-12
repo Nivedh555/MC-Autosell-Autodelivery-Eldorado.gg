@@ -143,7 +143,9 @@ class DeliveryService {
           if (rawBot.transport === 'fabric' && services.gameBridge) services.gameBridge.requireReceiptClient(account);
           const before = await this._at('balance', () => verifier.readBalance(rawBot));
           if(order.hybridWorkflow&&services.listingManager)await this._at('listing_stock',()=>services.listingManager.beforeDelivery(account,{order,balance:before}));
-          const chunks = splitAmount(order.amount, deliveryPolicy(policy));
+          const taxQuote=policy.taxMode==='sender_budget'?require('../minecraft/donutsmp-tax').observedRate(this.repo.db):null;
+          const chunks = splitAmount(order.amount, deliveryPolicy(policy,taxQuote?.basisPoints));
+          if(taxQuote)this.repo.event(order.id,'TAX_QUOTE',{basisPoints:taxQuote.basisPoints,sourceOrderId:taxQuote.orderId,recipientAmount:chunks.reduce((sum,part)=>sum+part.command,0n).toString(),orderAmount:String(order.amount)});
           const debit = chunks.reduce((sum, c) => sum + c.debit, 0n);
           if (before < debit + integer(policy.reserve)) throw new Error('Insufficient verified holder balance after reserve');
           locked = this.repo.lock(order.id, account, this.owner, debit, before);
@@ -188,6 +190,7 @@ class DeliveryService {
               throw new Error(result.reason);
             }
             this.repo.verify(order.id, i, result, this.ledger, account);
+            if(BigInt(result.expectedDebit||chunks[i].debit)>chunks[i].net)this.repo.event(order.id,'TAX_BUDGET_EXCEEDED',{actualDebit:result.expectedDebit,orderBudget:chunks[i].net.toString(),reason:'Server tax changed after the quote; review pricing before the next order.'});
             balance = integer(result.after);
           }
           const total = this.repo.chunks(order.id).reduce((sum, c) => sum + (c.state === 'PAY_VERIFIED' ? integer(c.amount) : 0n), 0n);
@@ -228,8 +231,8 @@ class DeliveryService {
         const connections = this.repo.history(order.id).filter(e => e.kind === 'CONNECTION').map(e => JSON.parse(e.data));
         const evidence = await this._at('evidence', () => build({
           orderId: order.id, buyerIgn: order.buyerIgn, amount: order.amount, screenshots,
-          amountMeaning: policy.orderAmountMode==='command' ? 'Exact ordered /pay command amount; no recipient-tax top-up' : 'Configured recipient amount',
-          recipientNet: 'not captured',
+          amountMeaning: policy.taxMode==='sender_budget' ? 'Funded order is the seller total debit budget; DonutSMP transfer tax is deducted from the buyer payment' : policy.orderAmountMode==='command' ? 'Exact ordered /pay command amount; no recipient-tax top-up' : 'Configured recipient amount',
+          recipientNet: policy.taxMode==='sender_budget' ? chunks.reduce((sum,chunk)=>sum+BigInt(chunk.command_amount),0n).toString() : 'not captured',
           sellerIgn: bot?.username || connections.at(-1)?.holderIgn || null, state: row.state, mode,
           preBalance: chunks[0]?.before_balance ?? null, postBalance: chunks.at(-1)?.after_balance ?? null,
           chunks, history: this.repo.history(order.id),

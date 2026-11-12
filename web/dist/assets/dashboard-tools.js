@@ -199,12 +199,28 @@ export function dashboardTools(React,request){
       listing.offerId&&listing.apiBinding?h(CompetitorPrices,{key:[listing.offerId,listing.apiBinding.gameId,listing.apiBinding.serverId].join('/') }):null));
   }
   function ChatGuide(){
-    const [messages,setMessages]=useState(null),[error,setError]=useState('');
-    useEffect(()=>{let live=true;fetch('/buyer-guides/messages.json').then(r=>{if(!r.ok)throw Error('Templates unavailable');return r.json();}).then(data=>{if(live)setMessages(data);}).catch(e=>{if(live)setError(e.message);});return()=>{live=false;};},[]);
-    const fields={buyer:'Buyer',amount:'500M',ign:'YourName',url:'[order link]'};
-    const step=(key,title,images=[])=>h('div',{key,className:'desk-example'},h('strong',null,title),h('pre',null,messages[key].replace(/\{(\w+)\}/g,(_,id)=>fields[id])),...images.map(file=>h('img',{key:file,src:'/buyer-guides/'+file,alt:file.split('.')[0]})));
-    return section('Eldorado buyer messages',note('Example for a 500M order. The live conversation uses the order amount, confirmed IGN and order link.'),
-      ...(messages?[step('opening','Greeting',['which-name.jpg']),step('confirm','Confirm the recipient'),step('sending','Before payment'),step('proof','After payment verification'),note('The buyer receives cropped payment evidence. The original screenshot stays in the owner’s proof record.'),step('delivered','After Eldorado marks the order delivered',['how-to-confirm-1.png','how-to-confirm-2.png'])]:[note(error||'Loading messages…')]));
+    const [messages,setMessages]=useState(null),[images,setImages]=useState({}),[tax,setTax]=useState(null),[error,setError]=useState(''),action=useAction();
+    useEffect(()=>{let live=true;request('/v3/eldorado/customer-messages').then(data=>{if(live){setMessages(data.templates);setImages(data.images);setTax(data.tax);}}).catch(e=>{if(live)setError(e.message);});return()=>{live=false;};},[]);
+    const fields={buyer:'Buyer',amount:'500M',ign:'YourName',url:'https://www.eldorado.gg/order/example'};
+    const titles={opening:'Greeting',confirm:'Confirm the recipient',sending:'Before payment',proof:'After payment verification',delivered:'After Eldorado marks the order delivered'};
+    const preview=text=>text.replace(/\{(\w+)\}/g,(_,id)=>fields[id]||'{'+id+'}');
+    const edit=(key,value)=>setMessages(current=>({...current,[key]:value}));
+    const upload=(slot,file)=>action.run(async()=>{
+      if(!file||file.type!=='image/png'||file.size>1024*1024)throw Error('Choose a PNG under 1 MB.');
+      const dataUrl=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('Could not read image'));reader.readAsDataURL(file);});
+      const result=await post('/v3/eldorado/customer-messages/image/'+slot,{dataUrl});
+      setImages(current=>({...current,[slot]:result.image}));return result.message;
+    });
+    const image=(slot,title)=>h('div',{key:slot,className:'desk-example'},h('strong',null,title),images[slot]?h('img',{src:images[slot],alt:title,style:{maxWidth:'100%',maxHeight:'220px',objectFit:'contain'}}):null,
+      label('Replace with PNG',h('input',{type:'file',accept:'image/png',disabled:action.busy,onChange:event=>upload(slot,event.target.files?.[0])})));
+    return section('Eldorado buyer messages',note('Edit the wording and guide images used for new orders. {buyer}, {amount}, {ign}, and {url} insert order details. A queued message keeps its saved wording.'),
+      note(tax?'Observed DonutSMP transfer tax: '+(tax.basisPoints/100).toFixed(2)+'%. The bot deducts it from the funded order amount.':'No verified DonutSMP tax receipt yet. Automatic payments wait until the tax is calibrated.'),
+      ...(messages?[
+        ...Object.keys(titles).map(key=>h('div',{key,className:'desk-example'},h('strong',null,titles[key]),h('textarea',{value:messages[key],rows:Math.max(3,Math.min(9,messages[key].split('\n').length+1)),onChange:event=>edit(key,event.target.value),style:{width:'100%',marginTop:'.7rem'}}),h('pre',null,preview(messages[key])))),
+        button('Save buyer messages',()=>action.run(async()=>{const result=await post('/v3/eldorado/customer-messages',{templates:messages});return result.message;}),action.busy,true),
+        note('For proof, the bot sends a cropped payment screenshot only after payment verification. The full screenshot stays in the private owner record.'),
+        image('username','Minecraft username guide'),image('confirm','Confirm delivery guide'),image('feedback','Thumbs up guide'),action.status
+      ]:[note(error||'Loading messages…')]));
   }
   function BuyingPanel(){
     const [preview,setPreview,error]=useData('/v3/discord/preview'),action=useAction();

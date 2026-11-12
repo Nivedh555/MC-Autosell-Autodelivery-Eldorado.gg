@@ -55,9 +55,14 @@ function amounts(net, policy) {
     command = (net * 10000n + (10000n - tax) - 1n) / (10000n - tax);
     if (command * (10000n - tax) / 10000n !== net) throw new Error('Cannot deliver exact amount with this tax rounding');
     debit = command;
+  } else if (policy.taxMode === 'sender_budget') {
+    // The funded order is a total spend cap. The buyer receives the largest
+    // whole-coin /pay amount whose estimated command plus server tax fits it.
+    let low=0n,high=net;
+    while(low<high){const mid=(low+high+1n)/2n;if(mid+mid*tax/10000n<=net)low=mid;else high=mid-1n;}
+    if(!low)throw Error('Order amount is too small after transfer tax');
+    command=low;debit=command+command*tax/10000n;
   } else if (policy.taxMode === 'buyer') {
-                                                                          
-                                                                               
   } else if (policy.taxMode === 'sender') debit = command + command * tax / 10000n;
   else if (policy.taxMode !== 'none' || tax !== 0n) throw new Error('Invalid tax policy');
   return { net, command, debit };
@@ -74,7 +79,14 @@ function splitAmount(total, policy) {
   }
   return result;
 }
-function deliveryPolicy(policy){return policy.orderAmountMode==='command'&&policy.taxMode==='recipient'?{...policy,taxMode:'buyer'}:policy;}
+function deliveryPolicy(policy, observedBasisPoints){
+  if(policy.taxMode==='sender_budget'){
+    if(!Number.isSafeInteger(observedBasisPoints)||observedBasisPoints<0||observedBasisPoints>3000)
+      throw Error('DonutSMP transfer tax has no verified recent receipt. Review tax before automatic payment.');
+    return {...policy,taxBasisPoints:String(observedBasisPoints)};
+  }
+  return policy.orderAmountMode==='command'&&policy.taxMode==='recipient'?{...policy,taxMode:'buyer'}:policy;
+}
 class VerifiedPayments {
   constructor(pack, capture = () => {}, step = (_name, fn) => fn(), { readOnly = false } = {}) {
     if (!pack || !(pack.calibrated || (readOnly && pack.balanceCalibrated)) || !pack.source) throw new Error(readOnly ? 'The server balance reply has not been reviewed. Open this bot’s Settings → Set up balance reading, capture /bal and confirm the exact reply. No payment was sent.' : 'UNVERIFIED payment reply and server limits. Capture a controlled payment before automatic delivery can send coins.');
@@ -103,20 +115,23 @@ class VerifiedPayments {
     return integer(text.replace(/,/g, ''));
   }
   _confirmationAmount(groups) {
-    if (!groups?.unit) return this._number(groups?.amount);
+    return this._displayAmount(groups?.amount, groups?.unit);
+  }
+  _displayAmount(amount, unit) {
+    if (!unit) return this._number(amount);
                                                                           
                                                                             
                                                                                
-    const scale=this.pack.confirmationUnits?.[groups.unit];
+    const scale=this.pack.confirmationUnits?.[unit];
     if (!scale || !this.pack.confirmationUnitsSource) throw Error('Unreviewed payment confirmation unit');
-    if (/[.]/.test(groups.amount || '')) {
-      const decimal = /^(\d+)\.(\d+)$/.exec(groups.amount);
+    if (/[.]/.test(amount || '')) {
+      const decimal = /^(\d+)\.(\d+)$/.exec(amount);
       if (!decimal) throw Error('Malformed payment confirmation amount');
       const numerator = BigInt(decimal[1] + decimal[2]) * integer(scale, 'confirmation unit'), divisor = 10n ** BigInt(decimal[2].length);
       if (numerator % divisor) throw Error('Payment confirmation contains a fraction of one coin');
       return numerator / divisor;
     }
-    return this._number(groups.amount)*integer(scale,'confirmation unit');
+    return this._number(amount)*integer(scale,'confirmation unit');
   }
   _exchange(bot, command, match, onSent, beforeSend, timeoutMs = this.pack.timeoutMs) {
     return require('./command-pacer').paceCommand(bot,async()=>{
@@ -218,7 +233,9 @@ class VerifiedPayments {
       signal = await this.step('confirmation', () => this._exchange(bot, `/pay ${ign} ${chunk.command}`, text => {
         const m = this.successPattern.exec(text);
         if (!m || m.groups?.ign?.toLowerCase() !== ign.toLowerCase() || this._confirmationAmount(m.groups) !== chunk.command) return null;
+        const tax = m.groups.taxAmount === undefined ? null : this._displayAmount(m.groups.taxAmount, m.groups.taxUnit);
         return { recipient: ign, amount: chunk.command.toString(), display:m.groups.amount+(m.groups.unit||''),
+          tax: tax === null ? null : tax.toString(),
           scope:'Matching recipient and confirmation display; exact payment requires independent sender balance debit' };
       }, onSent, beforeSend));
     } catch (error) { if (error.simulatedCrash) throw error; signalError = error.message; }
@@ -231,9 +248,10 @@ class VerifiedPayments {
         verified: false, reason: 'Post-payment balance unavailable; debit unknown, do not resend: ' + error.message };
     }
     const delta = before - after;
+    const expectedDebit = signal?.tax === null || signal?.tax === undefined ? chunk.debit : chunk.command + integer(signal.tax, 'receipt tax');
     return { before: before.toString(), after: after.toString(), delta: delta.toString(), signal, signalError,
-      verified: Boolean(signal) && delta === chunk.debit,
-      reason: !signal ? `Missing anchored confirmation; observed debit ${delta}; never resend automatically` : delta !== chunk.debit ? `Balance mismatch: expected debit ${chunk.debit}, observed ${delta}` : null };
+      expectedDebit: expectedDebit.toString(), verified: Boolean(signal) && delta === expectedDebit,
+      reason: !signal ? `Missing anchored confirmation; observed debit ${delta}; never resend automatically` : delta !== expectedDebit ? `Balance mismatch: expected debit ${expectedDebit}, observed ${delta}` : null };
   }
 }
 module.exports = { VerifiedPayments, integer, validIgn, amounts, splitAmount, deliveryPolicy, observeBalance, observeBalanceRecord, balanceCommand, reserveCommandChannel, isChannelBusy: bot => channels.has(bot.bot || bot) };

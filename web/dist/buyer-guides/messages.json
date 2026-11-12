@@ -1,6 +1,6 @@
 {
-  "opening": "Hey {buyer} 👋 Thanks for your order!\nI'm the auto-delivery bot, your {amount} goes out in seconds.\n\nReply with your Minecraft name like this:\n\nign: YourName\n\n📍 It's the name on the right of your screen in game (see picture), not your Eldorado name\n🩹 Underscore in your name? Type a dash instead: ign: Kai-7\n🧮 Bedrock? Add a dot: ign: .YourName",
-  "confirm": "Got it ✅ Sending {amount} to {ign}.\nIs that right? Reply yes or no",
+  "opening": "Hey {buyer} 👋 Thanks for your order!\nI'm the auto-delivery bot. DonutSMP transfer tax is deducted from the listed amount; I'll confirm the exact payment amount before sending.\n\nReply with your Minecraft name like this:\n\nign: YourName\n\n📍 It's the name on the right of your screen in game (see picture), not your Eldorado name\n🩹 Underscore in your name? Type a dash instead: ign: Kai-7\n🧮 Bedrock? Add a dot: ign: .YourName",
+  "confirm": "Got it ✅ DonutSMP transfer tax is deducted from your order amount. I'll send {amount} to {ign}.\nIs that right? Reply yes or no",
   "sending": "Sending {amount} to {ign} now 💸",
   "proof": "Done! Here's your proof 📸",
   "delivered": "Delivered ✅ Enjoy!\n\nPlease tap \"Confirm delivery\" on your order page, then give a thumbs up 👍 (see pictures):\n{url}\n\nAny issue, just message me."

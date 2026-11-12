@@ -12,9 +12,9 @@ function logicalKey(orderId, operation, request) {
   }
   if (operation !== 'uploadEvidenceObserved' || !request.name) return null;
   if (/^(?:receipt-|delivery-).*\.png$|^delivery\.(?:png|txt)$|^delivery-logs\.txt$/i.test(request.name)) return 'payment-evidence';
-  if (['minecraft-ign-guide.png','which-name.jpg'].includes(request.name)) return 'username-guide';
-  if (/^how-to-confirm(?:-1)?\.png$/.test(request.name)) return 'confirm-guide';
-  if (request.name === 'how-to-confirm-2.png') return 'feedback-guide';
+  if (['minecraft-ign-guide.png','which-name.jpg','username.png'].includes(request.name)) return 'username-guide';
+  if (/^how-to-confirm(?:-1)?\.png$/.test(request.name) || request.name === 'confirm.png') return 'confirm-guide';
+  if (['how-to-confirm-2.png','feedback.png'].includes(request.name)) return 'feedback-guide';
   return 'attachment:' + request.name;
 }
 

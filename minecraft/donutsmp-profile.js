@@ -3,6 +3,8 @@
                                                                               
                                                                     
 const source = 'Bundled DonutSMP reply profile v1; actual system replies and payment debit are checked at command time.';
+const legacySuccess = '^You paid (?<ign>\\.?[A-Za-z0-9_]{3,16}) \\$ (?<amount>[0-9]+(?:,[0-9]{3})*(?:\\.[0-9]+)?)(?<unit>[KkMmBbTt])?$';
+const taxedSuccess = '^You paid (?<ign>\\.?[A-Za-z0-9_]{3,16}) \\$ (?<amount>[0-9]+(?:,[0-9]{3})*(?:\\.[0-9]+)?)(?<unit>[KkMmBbTt])?(?: \\(\\+\\$ (?<taxAmount>[0-9]+(?:,[0-9]{3})*(?:\\.[0-9]+)?)(?<taxUnit>[KkMmBbTt])? tax\\))?$';
 function incomingDefaults() {
   const ign = '(?<ign>\\.?[A-Za-z0-9_]{3,16})';
   const value = '\\$\\s*(?<amount>[0-9]+(?:,[0-9]{3})*(?:\\.[0-9]+)?)(?<unit>[KkMmBbTt])?';
@@ -28,7 +30,7 @@ function profile() {
     balanceCalibrated: true, calibrated: true, systemPositions: ['system'], timeoutMs: 10000,
     recipientBalance: '^' + '(?<ign>\\.?[A-Za-z0-9_]{3,16}) has \\$ (?<amount>[0-9]+(?:,[0-9]{3})*(?:\\.[0-9]+)? ?[KkMmBbTt]?)' + '$',
     recipientBalanceCalibrated: true, recipientBalanceSource: source,
-    success: '^You paid (?<ign>\\.?[A-Za-z0-9_]{3,16}) \\$ (?<amount>[0-9]+(?:,[0-9]{3})*(?:\\.[0-9]+)?)(?<unit>[KkMmBbTt])?$',
+    success: taxedSuccess,
     confirmationUnits: { K: '1000', M: '1000000', B: '1000000000', T: '1000000000000', k: '1000', m: '1000000', b: '1000000000', t: '1000000000000' },
     confirmationUnitsSource: source, paymentSource: source,
   };
@@ -45,11 +47,15 @@ async function configure(settings) {
   const defaults = profile();
   const pack = { ...defaults, ...previous, serverProfile: 'donutsmp-v1' };
   if (!previous.calibrated) for (const key of ['calibrated', 'success', 'confirmationUnits', 'confirmationUnitsSource', 'paymentSource']) pack[key] = defaults[key];
+  // Only migrate the exact bundled expression. A seller's reviewed pattern stays intact.
+  if (previous.success === legacySuccess && previous.paymentSource === source) pack.success = taxedSuccess;
   if (JSON.stringify(pack) !== JSON.stringify(previous)) await settings.set('delivery.patternPack', pack, 'donutsmp-profile');
   const policy = await settings.get('delivery.policy') || {};
+  if(policy.source===source&&policy.taxMode==='buyer'&&String(policy.taxBasisPoints)==='0')
+    await settings.set('delivery.policy',{...policy,taxMode:'sender_budget'},'donutsmp-tax-budget-upgrade');
   if (!policy.source) await settings.set('delivery.policy', {
     orderAmountMode: 'command', unitSize: '1000000', minOrder: '1000000', maxOrder: String(Number.MAX_SAFE_INTEGER),
-    maxPay: '100000000', maxChunks: 1000, taxMode: 'buyer', taxBasisPoints: '0', reserve: '0',
+    maxPay: '100000000', maxChunks: 1000, taxMode: 'sender_budget', taxBasisPoints: '0', reserve: '0',
     gameId: 'DonutSMP', serverId: 'DonutSMP', paidStatuses: ['Pending delivery'], bedrockPrefix: '.',
     cooldownMs: 0, markRetryMs: 30000, markEscalateMs: 600000, ...policy,
     source, calibrated: true, commandCapacityObserved: true,

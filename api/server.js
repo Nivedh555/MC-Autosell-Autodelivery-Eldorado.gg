@@ -23,7 +23,7 @@ function createServer(services) {
   const boundary = require('./security-boundary');
   const { verifyAuth, csrfProtection } = require('./middleware');
   app.use(boundary.originGuard);
-  app.use(express.json({ limit: '64kb' }));
+  app.use(express.json({ limit: '2mb' }));
   app.use(['/api/auth', '/api/v2/auth'], boundary.authRouter());
   app.use('/api', verifyAuth, csrfProtection, boundary.sensitiveGuard);
 
