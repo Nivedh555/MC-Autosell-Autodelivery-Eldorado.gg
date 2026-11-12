@@ -303,7 +303,7 @@ class ListingManager {
         if (!delivery.calibrated || !delivery.source) throw new Error('Calibrate payment limits and tax before resuming an offer');
         const outstanding = this.db.prepare(`SELECT payload,account_id FROM delivery_orders WHERE ${require('./listing-reservations').reservesStockSql}`).all()
           .filter(row => { const data = JSON.parse(row.payload); return data.kind !== 'transfer' && (row.account_id === account || data.offerId === offer.id); })
-          .reduce((total, row) => total + splitAmount(JSON.parse(row.payload).amount, deliveryPolicy(delivery)).reduce((sum, chunk) => sum + chunk.debit, 0n), 0n);
+          .reduce((total, row) => total + splitAmount(JSON.parse(row.payload).amount, deliveryPolicy(delivery, delivery.taxMode==='sender_budget'?require('../minecraft/donutsmp-tax').observedRate(this.db)?.basisPoints:undefined)).reduce((sum, chunk) => sum + chunk.debit, 0n), 0n);
         const reserve = integer(policy.reserve) + outstanding, spendable = balance > reserve ? balance - reserve : 0n;
         const unit = integer(this.adapter.contract.units.coinsPerUnit);
         const available = this.deliverableStock(spendable, delivery, unit);
@@ -349,7 +349,7 @@ class ListingManager {
     while (low < high) {
       const mid = (low + high + 1n) / 2n;
       let debit;
-      try { debit = splitAmount(mid * unit, deliveryPolicy(policy)).reduce((total, chunk) => total + chunk.debit, 0n); }
+      try { debit = splitAmount(mid * unit, deliveryPolicy(policy, policy.taxMode==='sender_budget'?require('../minecraft/donutsmp-tax').observedRate(this.db)?.basisPoints:undefined)).reduce((total, chunk) => total + chunk.debit, 0n); }
       catch (error) { if (!/Chunk count limit/.test(error.message)) throw error; debit = balance + 1n; }
       if (debit <= balance) low = mid; else high = mid - 1n;
     }

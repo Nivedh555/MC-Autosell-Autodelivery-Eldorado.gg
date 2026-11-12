@@ -76,6 +76,15 @@ test('recent uncertain payment journal can establish tax without authorizing a r
   for(const [kind,data] of events)raw.prepare('INSERT INTO delivery_events(order_id,kind,data,wall_ms,monotonic_ns) VALUES(?,?,?,?,?)').run(id,kind,JSON.stringify(data),1,'1');
   assert.equal(observedRate(raw,'seller1').basisPoints,200);
   assert.equal(raw.prepare('SELECT state FROM delivery_chunks WHERE order_id=?').get(id).state,'PAY_SENT');
+  const policy={calibrated:true,source:'fixture',orderAmountMode:'command',taxMode:'sender_budget',taxBasisPoints:'0',maxPay:'100000000',maxChunks:10,unitSize:'1000000',offerId:'offer',gameId:'donut',serverId:'main',paidStatuses:['FUNDED'],cooldownMs:0,markRetryMs:0,markEscalateMs:0};
+  const order={buyerIgn:'14him',amount:'10000000',unitSize:'1000000',offerId:'offer',gameId:'donut',serverId:'main',status:'FUNDED'};
+  const {DeliveryService}=require('../../marketplace/delivery-service');
+  assert.doesNotThrow(()=>DeliveryService.prototype._validate.call({repo:{db:raw},options:{mode:'live'}},order,policy));
+  const ListingManager=require('../../marketplace/listing-manager').ListingManager;
+  assert.equal(ListingManager.prototype.deliverableStock.call({db:raw},10000000n,policy,1000000n),10000000n);
+  raw.prepare('DELETE FROM delivery_events WHERE order_id=?').run(id);
+  assert.throws(()=>DeliveryService.prototype._validate.call({repo:{db:raw},options:{mode:'live'}},order,policy),/no verified recent receipt/);
+
 });
 
 test('bundled legacy payment profile and policy migrate to tax-aware budget mode',async()=>{

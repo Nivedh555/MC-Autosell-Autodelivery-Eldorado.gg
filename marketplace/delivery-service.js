@@ -346,7 +346,7 @@ class DeliveryService {
     if (!Array.isArray(policy.paidStatuses) || !policy.paidStatuses.includes(order.status)) throw new Error('Order is not in a documented funded status');
     for (const key of ['cooldownMs','markRetryMs','markEscalateMs']) if (!Number.isSafeInteger(policy[key]) || policy[key] < 0) throw new Error('Missing policy: ' + key);
     if (order.deadlineMs && Date.now() >= order.deadlineMs) throw new Error('Delivery deadline elapsed; operator must confirm late delivery');
-    splitAmount(amount, deliveryPolicy(policy));
+    splitAmount(amount, deliveryPolicy(policy, policy.taxMode==='sender_budget'?require('../minecraft/donutsmp-tax').observedRate(this.repo.db)?.basisPoints:undefined));
   }
   _splitAmount(total, maxChunk) { return splitAmount(total, { maxPay: maxChunk, taxBasisPoints: 0, taxMode: 'none' }).map(c => Number(c.net)); }
 }
