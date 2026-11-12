@@ -51,7 +51,7 @@ test('DonutSMP taxed receipt rejects a different sender debit', async () => {
 
 test('funded order is a strict total debit budget after observed tax', () => {
   const parts=splitAmount('10000000',deliveryPolicy({taxMode:'sender_budget',taxBasisPoints:'0',maxPay:'100000000'},200));
-  assert.equal(parts[0].command,9803922n);
+  assert.equal(parts[0].command,9803921n);
   assert.equal(parts[0].debit,10000000n);
   assert.equal(parts[0].net,10000000n);
   assert.throws(()=>deliveryPolicy({taxMode:'sender_budget'},undefined),/no verified recent receipt/);
@@ -99,4 +99,14 @@ test('bundled legacy payment profile and policy migrate to tax-aware budget mode
   assert.equal(await configure(settings),true);
   assert.equal(values.get('delivery.policy').taxMode,'sender_budget');
   assert.equal(values.get('delivery.patternPack').success,defaults.success);
+});
+
+test('rounded DonutSMP receipt still requires the exact conservatively budgeted sender debit',async()=>{
+ const part=splitAmount('10000000',deliveryPolicy({taxMode:'sender_budget',maxPay:'100000000'},200))[0];
+ for(const mismatch of [0n,1n]){
+  const bot=new EventEmitter();bot.chat=command=>queueMicrotask(()=>bot.emit('messagestr',command.startsWith('/pay ')?'You paid 14him $ 9.8M (+$ 196K tax)':'You have $ '+(20000000n-part.debit-mismatch),'system'));
+  const v=new VerifiedPayments({...profile(),timeoutMs:30});
+  const result=await v.exclusive(bot,b=>v.pay(b,'14him',part,20000000n));
+  assert.equal(result.verified,mismatch===0n);
+ }
 });

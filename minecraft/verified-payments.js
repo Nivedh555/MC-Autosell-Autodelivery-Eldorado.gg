@@ -59,9 +59,9 @@ function amounts(net, policy) {
     // The funded order is a total spend cap. The buyer receives the largest
     // whole-coin /pay amount whose estimated command plus server tax fits it.
     let low=0n,high=net;
-    while(low<high){const mid=(low+high+1n)/2n;if(mid+mid*tax/10000n<=net)low=mid;else high=mid-1n;}
+    while(low<high){const mid=(low+high+1n)/2n;if(mid+(mid*tax+9999n)/10000n<=net)low=mid;else high=mid-1n;}
     if(!low)throw Error('Order amount is too small after transfer tax');
-    command=low;debit=command+command*tax/10000n;
+    command=low;debit=command+(command*tax+9999n)/10000n;
   } else if (policy.taxMode === 'buyer') {
   } else if (policy.taxMode === 'sender') debit = command + command * tax / 10000n;
   else if (policy.taxMode !== 'none' || tax !== 0n) throw new Error('Invalid tax policy');
@@ -116,6 +116,15 @@ class VerifiedPayments {
   }
   _confirmationAmount(groups) {
     return this._displayAmount(groups?.amount, groups?.unit);
+  }
+  _matchesDisplay(amount,unit,exact) {
+    const displayed=this._displayAmount(amount,unit);
+    if(displayed===exact)return true;
+    if(this.pack.serverProfile!=='donutsmp-v1'||!unit)return false;
+    const decimals=(String(amount).split('.')[1]||'').length;
+    const quantum=integer(this.pack.confirmationUnits[unit])/(10n**BigInt(decimals));
+    const difference=exact-displayed;
+    return difference<quantum && difference> -quantum;
   }
   _displayAmount(amount, unit) {
     if (!unit) return this._number(amount);
@@ -232,8 +241,10 @@ class VerifiedPayments {
     try {
       signal = await this.step('confirmation', () => this._exchange(bot, `/pay ${ign} ${chunk.command}`, text => {
         const m = this.successPattern.exec(text);
-        if (!m || m.groups?.ign?.toLowerCase() !== ign.toLowerCase() || this._confirmationAmount(m.groups) !== chunk.command) return null;
-        const tax = m.groups.taxAmount === undefined ? null : this._displayAmount(m.groups.taxAmount, m.groups.taxUnit);
+        if (!m || m.groups?.ign?.toLowerCase() !== ign.toLowerCase() || !this._matchesDisplay(m.groups.amount,m.groups.unit,chunk.command)) return null;
+        let tax = m.groups.taxAmount === undefined ? null : this._displayAmount(m.groups.taxAmount, m.groups.taxUnit);
+        const plannedTax=chunk.debit-chunk.command;
+        if(tax!==null && plannedTax>0n && this._matchesDisplay(m.groups.taxAmount,m.groups.taxUnit,plannedTax))tax=plannedTax;
         return { recipient: ign, amount: chunk.command.toString(), display:m.groups.amount+(m.groups.unit||''),
           tax: tax === null ? null : tax.toString(),
           scope:'Matching recipient and confirmation display; exact payment requires independent sender balance debit' };
