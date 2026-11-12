@@ -95,6 +95,7 @@ const Logger = {
     services._runtimeEventsAttached = true;
     const on = (event, fn) => services.events.on(event, fn);
     on('session:connecting', ({ accountId }) => line('INFO', accountId, 'Connecting to Minecraft'));
+    on('session:waiting_game', ({ accountId }) => line('WAIT', accountId, 'Waiting for the paired Minecraft client to join DonutSMP'));
     on('session:ready', ({ accountId }) => line('READY', accountId, 'Session ready for jobs'));
     on('session:idle_grace', ({ accountId, graceMs }) => line('WAIT', accountId, 'No active jobs; idle disconnect scheduled', Number.isFinite(graceMs) ? { 'Disconnect in': Math.round(graceMs / 1000) + ' seconds' } : {}));
     on('session:disconnected', ({ accountId }) => line('INFO', accountId, 'Session disconnected'));

@@ -37,3 +37,21 @@ test('manual logout prevents new jobs from acquiring the online account',async t
   await assert.rejects(manager.acquire('buyer1','fixture'),/manually|logged out/i);
   assert.equal(manager.getLeases('buyer1').length,0);
 });
+test('offline Fabric account waits for the paired game without repeated connection attempts',async t=>{
+  const previousBridge=services.gameBridge,previousEvents=services.events;
+  services.gameBridge={clients:new Map()};services.events=new EventEmitter();
+  t.after(()=>{services.gameBridge=previousBridge;services.events=previousEvents;});
+  const manager=new sessions.SessionManager(),client=new EventEmitter();
+  t.after(()=>manager.shutdownAll());
+  client.transport='fabric';client.bot=null;client.state='offline';client.isOnline=()=>false;
+  client._getEmail=()=> 'seller@example.test';
+  let attempts=0,waiting=0;
+  client.connect=async()=>{attempts++;};client.disconnect=async()=>{};
+  services.events.on('session:waiting_game',()=>waiting++);
+  manager.clients.set('seller1',client);manager.states.set('seller1','DISCONNECTED');manager.getMode=()=> 'always_on';
+  manager._evaluateAccountConnection('seller1');manager._evaluateAccountConnection('seller1');
+  assert.equal(attempts,0);assert.equal(waiting,1);
+  services.gameBridge.clients.set('seller1',{});
+  manager._evaluateAccountConnection('seller1');
+  assert.equal(attempts,1);
+});

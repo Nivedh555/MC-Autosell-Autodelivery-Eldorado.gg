@@ -94,6 +94,7 @@ class SessionManager extends EventEmitter {
                                              
     this.graceTimers = new Map();
     this.manualStops = new Set();
+    this.waitingForGame = new Set();
                        
     this.watchdogInterval = setInterval(() => this._checkExpirations(), 5000);
     this.watchdogInterval.unref?.();
@@ -187,6 +188,16 @@ class SessionManager extends EventEmitter {
 
     if (shouldBeOnline) {
       this._clearGraceTimer(accountId);
+      // A Fabric session belongs to the player's already-running game. There is
+      // no remote login to retry while that game is outside DonutSMP.
+      if (client.transport === 'fabric' && !services.gameBridge?.clients?.has(accountId)) {
+        if (!this.waitingForGame.has(accountId)) {
+          this.waitingForGame.add(accountId);
+          services.events?.emit('session:waiting_game', { accountId });
+        }
+        return;
+      }
+      this.waitingForGame.delete(accountId);
       const login=String(client._getEmail?.() || '').trim().toLowerCase();
       if (!login && services.pairManager) return;
       if(login){
@@ -246,6 +257,7 @@ class SessionManager extends EventEmitter {
       require('../sell/exchange').onPayment(payment, client).catch(error => services.events?.emit('operator:alert', { component: 'intake', reason: error.message }));
     });
     client.on('spawn', () => {
+      this.waitingForGame.delete(accountId);
                                                                        
       if (this.states.get(accountId) === 'IDLE_GRACE' && !this.getLeases(accountId).length) return;
       this._setState(accountId, 'READY');
@@ -366,6 +378,7 @@ class SessionManager extends EventEmitter {
   async shutdownAll() {
     this.stopping = true;
     clearInterval(this.watchdogInterval);
+    this.waitingForGame.clear();
     for (const accountId of this.clients.keys()) this._failPendingLeases(accountId, new Error('Application shutdown'));
     this.leases.clear();
     await Promise.all([...this.clients.entries()].map(async ([accountId, client]) => {

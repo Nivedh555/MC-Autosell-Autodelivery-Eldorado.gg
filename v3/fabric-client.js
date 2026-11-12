@@ -5,6 +5,7 @@ class FabricClient extends EventEmitter {
   constructor(accountId) {
     super();
     this.accountId = accountId;
+    this.transport = "fabric";
     this.state = "offline";
     this.role = accountId === "buyer1" ? "primary" : "secondary";
     this.bot = null;
